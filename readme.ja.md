@@ -2,6 +2,8 @@
 
 - ページコンテンツのヘッダーをタブにします。これにより、ヘッダーで区切って、ページを分割することが可能です！
 
+- 左サイドバーの目次機能 >>> [Left Sidebar Enhance](https://github.com/YU000jp/logseq-plugin-left-sidebar-enhance) プラグイン
+
 <div align="right">
  
 [English](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content) / [日本語](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content/blob/main/readme.ja.md) [![latest release version](https://img.shields.io/github/v/release/YU000jp/logseq-plugin-tabbed-headers-for-page-content)](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content/releases) [![License](https://img.shields.io/github/license/YU000jp/logseq-plugin-tabbed-headers-for-page-content?color=blue)](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content/LICENSE) [![Downloads](https://img.shields.io/github/downloads/YU000jp/logseq-plugin-tabbed-headers-for-page-content/total.svg)](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content/releases)
