@@ -13,6 +13,8 @@
 - Headers are used to organise long pages for ease of use and viewing. The upper blocks are separated and the user can switch between them by tabs.
   1. display of the upper TOC (tabs)
   2. separation of the upper blocks in the page
+ 
+> ![image](https://github.com/user-attachments/assets/7a036c1b-d088-4894-983e-ec8caaab88a6)
 
 ---
 
