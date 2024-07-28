@@ -1,3 +1,10 @@
+# 1.0.0 (2024-07-28)
+
+
+### Features
+
+* **Add:** TOC transplantation ([14051cc](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content/commit/14051cc168e28d0fc296e862b02790a07deaae77))
+
 # [1.1.0](https://github.com/YU000jp/logseq-plugin-template-block-from-toolbar/compare/v1.0.0...v1.1.0) (2024-07-27)
 
 
