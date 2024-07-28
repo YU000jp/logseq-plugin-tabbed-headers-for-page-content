@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content/compare/v1.0.0...v1.1.0) (2024-07-28)
+
+
+### Features
+
+* **Add:** Hide block children ([f44a6fa](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content/commit/f44a6fa7e546b7a7b540b9974140e28fe0da8b47))
+
 # 1.0.0 (2024-07-28)
 
 
