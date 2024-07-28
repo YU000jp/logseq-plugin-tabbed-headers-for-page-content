@@ -19,7 +19,8 @@
     },
     "dependencies": {
         "@logseq/libs": "^0.0.17",
-        "logseq-l10n": "^0.2.0"
+        "logseq-l10n": "^0.2.0",
+        "remove-markdown": "^0.5.0"
     },
     "devDependencies": {
         "@semantic-release/changelog": "^6.0.3",

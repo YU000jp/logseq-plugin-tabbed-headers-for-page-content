@@ -1,4 +1,4 @@
-import { BlockUUID } from "@logseq/libs/dist/LSPlugin.user"
+
 
 export const removeProvideStyle = (className: string) => {
     const doc = parent.document.head.querySelector(
