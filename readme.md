@@ -2,6 +2,8 @@
 
 - Turn the header of the page content into a tab. This allows the page to be divided into separate pages, separated by headers!
 
+- TOC function in left sidebar >>> [Left Sidebar Enhance](https://github.com/YU000jp/logseq-plugin-left-sidebar-enhance) plugin
+
 <div align="right">
  
 [English](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content) / [日本語](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content/blob/main/readme.ja.md) [![latest release version](https://img.shields.io/github/v/release/YU000jp/logseq-plugin-tabbed-headers-for-page-content)](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content/releases) [![License](https://img.shields.io/github/license/YU000jp/logseq-plugin-tabbed-headers-for-page-content?color=blue)](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content/LICENSE) [![Downloads](https://img.shields.io/github/downloads/YU000jp/logseq-plugin-tabbed-headers-for-page-content/total.svg)](https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content/releases)
