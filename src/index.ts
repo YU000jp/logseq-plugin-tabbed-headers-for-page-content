@@ -30,12 +30,13 @@ const icon = "🪧"
 const keyToolbarPopup = "tabbedHeadersToolbarPopup"
 const keyToolbarHeaderSpace = "tabbedHeadersToolbarHeaderSpace"
 const keyToggleTableId = "thfpc--toggleHeader"
-const keyToggleH1 = "tabbedHeadersToggleH1"
-const keyToggleH2 = "tabbedHeadersToggleH2"
-const keyToggleH3 = "tabbedHeadersToggleH3"
-const keyToggleH4 = "tabbedHeadersToggleH4"
-const keyToggleH5 = "tabbedHeadersToggleH5"
-const keyToggleH6 = "tabbedHeadersToggleH6"
+const tabbedHeadersToggle = "tabbedHeadersToggle"
+const keyToggleH1 = `${tabbedHeadersToggle}H1`
+const keyToggleH2 = `${tabbedHeadersToggle}H2`
+const keyToggleH3 = `${tabbedHeadersToggle}H3`
+const keyToggleH4 = `${tabbedHeadersToggle}H4`
+const keyToggleH5 = `${tabbedHeadersToggle}H5`
+const keyToggleH6 = `${tabbedHeadersToggle}H6`
 const keyToolbarContent = "tabbedHeadersToolbarContent"
 const keyHeaderListUlId = "thfpc--toc-content"
 const keyRefreshButton = "tabbedHeadersRefreshButton"
@@ -119,17 +120,17 @@ const main = async () => {
     [keyRefreshButton]: () => displayHeadersList(),
 
     //h1の表示・非表示
-    [keyToggleH1]: () => hideHeaderFromList("h1"),
+    [keyToggleH1]: () => hideHeaderFromList("H1"),
     //h2の表示・非表示
-    [keyToggleH2]: () => hideHeaderFromList("h2"),
+    [keyToggleH2]: () => hideHeaderFromList("H2"),
     //h3の表示・非表示
-    [keyToggleH3]: () => hideHeaderFromList("h3"),
+    [keyToggleH3]: () => hideHeaderFromList("H3"),
     //h4の表示・非表示
-    [keyToggleH4]: () => hideHeaderFromList("h4"),
+    [keyToggleH4]: () => hideHeaderFromList("H4"),
     //h5の表示・非表示
-    [keyToggleH5]: () => hideHeaderFromList("h5"),
+    [keyToggleH5]: () => hideHeaderFromList("H5"),
     //h6の表示・非表示
-    [keyToggleH6]: () => hideHeaderFromList("h6"),
+    [keyToggleH6]: () => hideHeaderFromList("H6"),
 
   })
 
@@ -152,7 +153,7 @@ const hideHeaderFromList = (headerName: string) => {
   //リストから該当のヘッダーを削除
   toggleHeaderVisibility(headerName)
   //keyToggleの色を赤にする
-  const button = parent.document.getElementById(`tabbedHeadersToggle${headerName.toUpperCase()}`) as HTMLButtonElement | null
+  const button = parent.document.getElementById(`${tabbedHeadersToggle}${headerName.toUpperCase()}`) as HTMLElement | null
   if (button)
     button.style.color = button.style.color === "red" ?
       "unset"
@@ -204,6 +205,14 @@ const openPopupFromToolbar = () => {
         <hr/>
         <div id="${keyToolbarContent}"></div>
         </div>
+        <style>
+        /* h1,h2,h3,h4,h5,h6を持つブロックの子要素を非表示にする ブロックズームを除く */
+          div.page:has(.page-title) div[haschild="true"].ls-block:has(h1,h2,h3,h4,h5,h6) {
+            &>div.block-children-container {
+              display: none;
+            }
+          }
+        </style>
         `,
   })
   setTimeout(() =>
@@ -232,19 +241,20 @@ const displayHeadersList = async () => {
     if (currentPageOrBlockEntity) {
       // console.log("currentPageEntity is not null")
       // console.log(currentPageOrBlockEntity)
-      if (currentPageOrBlockEntity.originalName
-        && currentPageOrBlockEntity.originalName !== currentPageOriginalName) {
-        updateCurrentPage(currentPageOrBlockEntity.originalName as PageEntity["originalName"], currentPageOrBlockEntity.uuid as PageEntity["uuid"])
-      } else {
-        const pageEntity = await logseq.Editor.getPage((currentPageOrBlockEntity.page as BlockEntity["page"]).id) as { uuid: PageEntity["uuid"], originalName: PageEntity["originalName"] }
-        if (pageEntity) {
-          // console.log("pageEntity is not null")
-          // console.log(pageEntity)
-          if (pageEntity.originalName
-            && pageEntity.originalName !== currentPageOriginalName)
-            updateCurrentPage(pageEntity.originalName, pageEntity.uuid)
+      if (currentPageOrBlockEntity.originalName) {
+        if (currentPageOrBlockEntity.originalName !== currentPageOriginalName)
+          updateCurrentPage(currentPageOrBlockEntity.originalName as PageEntity["originalName"], currentPageOrBlockEntity.uuid as PageEntity["uuid"])
+      } else
+        if ((currentPageOrBlockEntity as BlockEntity).page) {
+          const pageEntity = await logseq.Editor.getPage((currentPageOrBlockEntity as BlockEntity).page.id) as { uuid: PageEntity["uuid"], originalName: PageEntity["originalName"] }
+          if (pageEntity) {
+            // console.log("pageEntity is not null")
+            // console.log(pageEntity)
+            if (pageEntity.originalName
+              && pageEntity.originalName !== currentPageOriginalName)
+              updateCurrentPage(pageEntity.originalName, pageEntity.uuid)
+          }
         }
-      }
     }
 
     if (currentPageOriginalName === "") {
@@ -403,7 +413,7 @@ const generateContent = async (
     && content.includes("))")) {
     // Get content if it's q block reference
     const blockIdArray = /\(([^(())]+)\)/.exec(content)
-    if (blockIdArray) 
+    if (blockIdArray)
       for (const blockId of blockIdArray) {
         const block = await logseq.Editor.getBlock(blockId, { includeChildren: false, })
         if (block)
@@ -431,7 +441,7 @@ const generateContent = async (
 
   //リストにマッチする文字列を正規表現で取り除く
   content = removeListWords(content, logseq.settings!.tocRemoveWordList as string)
-  
+
   return content
 }
 
