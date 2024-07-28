@@ -14,6 +14,7 @@
   1. display of the upper TOC (tabs)
   2. separation of the upper blocks in the page
  
+- Ported TOC functionality. Currently, it is implemented in a pop-up display. I would like to design it in such a way that it switches in tabs.
 > ![image](https://github.com/user-attachments/assets/7a036c1b-d088-4894-983e-ec8caaab88a6)
 
 ---
