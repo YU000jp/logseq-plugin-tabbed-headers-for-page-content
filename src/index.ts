@@ -129,8 +129,11 @@ const main = async () => {
   //CSS
   logseq.provideStyle(`
   body>div#tabbed-headers-for-page-content--${keyToolbarPopup} {
-    & table#${keyToggleTableId} {
+    & #${keyToggleTableId} {
       font-size: 0.85em;
+      opacity: 0.7;
+      margin-left: auto;
+      margin-right: auto;
       & th {
         padding: 0.5em;
       }
@@ -295,7 +298,7 @@ const openPopupFromToolbar = () => {
         <div title="">
         <div id="${keyToolbarSelectPage}"></div>
         
-        <table style="margin-left: auto; margin-right: auto;" id="${keyToggleTableId}">
+        <table id="${keyToggleTableId}">
         <tr>
         <th title="${t("Toggle for hide")}">h1<input type="checkbox" id="${keyToggleH1}" data-on-click="${keyToggleH1}"${logseq.settings!.hideH1 ? `checked="true"` : ""}/></th>
         <th title="${t("Toggle for hide")}">h2<input type="checkbox" id="${keyToggleH2}" data-on-click="${keyToggleH2}" ${logseq.settings!.hideH2 ? `checked="true"` : ""}/></th>
@@ -688,16 +691,22 @@ const generatePageButton = () => {
       }
       headerSpace.classList.add("flex")
       headerSpace.style.flexWrap = "nowrap"
-      headerSpace.appendChild(createOpenButton("🔙"))
+      if (currentBlockUuid !== "") // ブロックズームで開いている場合は、戻るボタンを追加
+        headerSpace.appendChild(createOpenButton(" 🔙 🔎",
+          //ズーム・ブロックを解除する
+          t("This zoom block will be lifted."),))
     } else
-      headerSpace.appendChild(createOpenButton(currentPageOriginalName))
+      if (currentBlockUuid !== "")
+        headerSpace.appendChild(createOpenButton(currentPageOriginalName + " 🔙 🔎",
+          t("This zoom block will be lifted.")))
+
   }
 }
 
 
-const createOpenButton = (buttonText: string) => {
+const createOpenButton = (buttonText: string, title: string) => {
   const openButton = document.createElement("button")
-  openButton.title = currentPageOriginalName
+  openButton.title = title
   openButton.textContent = buttonText
   openButton.className = "button"
   openButton.style.whiteSpace = "nowrap"
