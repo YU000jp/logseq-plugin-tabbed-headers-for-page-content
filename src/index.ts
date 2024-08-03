@@ -41,15 +41,20 @@ const keyToggleH5 = `${tabbedHeadersToggle}H5`
 const keyToggleH6 = `${tabbedHeadersToggle}H6`
 const keyToolbarContent = "tabbedHeadersToolbarContent"
 const keyRefreshButton = "tabbedHeadersRefreshButton"
+const keyToggleStyleForHideBlock = "tabbedHeadersToggleStyleForHideBlock"
 
 //現在のページ名とuuidの保持
 let currentPageOriginalName: PageEntity["originalName"] = ""
+let currentPageName: PageEntity["name"] = ""
 let currentPageUuid: PageEntity["uuid"] = ""
+let currentBlockUuid: BlockEntity["uuid"] = ""
 
 
-const updateCurrentPage = async (pageName: string, pageUuid: PageEntity["uuid"]) => {
-  currentPageOriginalName = pageName
+const updateCurrentPage = async (pageName: string, originalName: string, pageUuid: PageEntity["uuid"]) => {
+  currentPageOriginalName = originalName
+  currentPageName = pageName
   currentPageUuid = pageUuid
+  currentBlockUuid = "" //ページが変わったら、ブロックのuuidをリセットする
 
   // logseq.settings!.historyに、配列をつくって、ページ名を履歴にいれる (重複させない)
   const history = logseq.settings!.history as string[] || []
@@ -58,13 +63,54 @@ const updateCurrentPage = async (pageName: string, pageUuid: PageEntity["uuid"])
     logseq.updateSettings({ history })
   } else {
     if (!history.includes(pageName)) {
+      //TODO: お気に入りと重複させないようにするオプション
       history.unshift(pageName)
-      logseq.updateSettings({ history: history.slice(0, 10) })
+      logseq.updateSettings({ history: history.slice(0, 16) })
     }
   }
 }
 
 
+let processingBlockChanged: boolean = false//処理中 TOC更新中にブロック更新が発生した場合に処理を中断する
+
+let onBlockChangedOnce: boolean = false//一度のみ
+const onBlockChanged = () => {
+
+  if (onBlockChangedOnce === true)
+    return
+  onBlockChangedOnce = true //index.tsの値を書き換える
+  logseq.DB.onChanged(async ({ blocks }) => {
+
+    if (processingBlockChanged === true
+      || currentPageOriginalName === ""
+      || logseq.settings!.booleanTableOfContents === false)
+      return
+    //headingがあるブロックが更新されたら
+    const findBlock = blocks.find((block) => block.properties?.heading) as { uuid: BlockEntity["uuid"] } | null //uuidを得るためsomeではなくfindをつかう
+    if (!findBlock) return
+    const uuid = findBlock ? findBlock!.uuid : null
+    updateToc()
+
+    setTimeout(() => {
+      //ブロック更新のコールバックを登録する
+      if (uuid)
+        logseq.DB.onBlockChanged(uuid, async () => updateToc())
+    }, 200)
+
+  })
+}
+
+
+const updateToc = () => {
+  if (processingBlockChanged === true)
+    return
+  processingBlockChanged = true //index.tsの値を書き換える
+  setTimeout(async () => {
+    //#keyRefreshButtonをクリックする
+    clickRefreshButton()
+    processingBlockChanged = false
+  }, 100)
+}
 
 
 /* main */
@@ -112,6 +158,9 @@ const main = async () => {
   })
 
 
+
+  let flagToggleStyleForHideBlock: boolean = false
+
   //クリックイベント
   logseq.provideModel({
 
@@ -123,6 +172,29 @@ const main = async () => {
 
     //設定ボタンを押したら設定画面を表示
     [keySettingsButton]: () => logseq.showSettingsUI(),
+
+    [keyToggleStyleForHideBlock]: () => { // サブブロックを非表示にするスタイルをトグル
+      if (flagToggleStyleForHideBlock) return
+      flagToggleStyleForHideBlock = true
+
+      let state = false
+
+      //body.classに「thfpc--hide-block」がある場合は削除する
+      if (parent.document.body.classList.contains(keyToggleStyleForHideBlock))
+        parent.document.body.classList.remove(keyToggleStyleForHideBlock)
+      else {
+        parent.document.body.classList.add(keyToggleStyleForHideBlock)
+        state = true //非表示の状態であることを示す
+      }
+      setTimeout(() => {
+        flagToggleStyleForHideBlock = false
+        //#keyToggleStyleForHideBlockのトグルをマッチさせる
+        const button = parent.document.getElementById(keyToggleStyleForHideBlock) as HTMLInputElement | null
+        if (button)
+          button.checked = state
+        logseq.updateSettings({ hideBlockChildren: state })
+      }, 300)
+    },
 
     //h1の表示・非表示
     [keyToggleH1]: () => hideHeaderFromList("H1"),
@@ -146,7 +218,35 @@ const main = async () => {
   })/* end_beforeunload */
 
 
+  onBlockChanged() //ブロック変更時の処理
+
+
+  //ページ読み込み時に実行コールバック
+  logseq.App.onRouteChanged(({ path, template }) => {
+    if (template === "/page/:name"
+      && decodeURI(path.substring(6)) !== currentPageName)
+      routeCheck()
+  })
+  // logseq.App.onPageHeadActionsSlotted(() => {//動作保証のため、2つとも必要
+  //   routeCheck()
+  // })
+
+  // 初回実行
+  if (logseq.settings!.hideBlockChildren)
+    parent.document.body.classList.add(keyToggleStyleForHideBlock)
+
+
 }/* end_main */
+
+
+
+let processingRouteCheck = false
+const routeCheck = () => {
+  if (processingRouteCheck) return
+  processingRouteCheck = true
+  setTimeout(() => processingRouteCheck = false, 300)
+  clickRefreshButton()
+}
 
 
 
@@ -157,12 +257,9 @@ const hideHeaderFromList = (headerName: string) => {
   setTimeout(() => processingButton = false, 300)
   //リストから該当のヘッダーを削除
   toggleHeaderVisibility(headerName)
-  //keyToggleの色を赤にする
-  const button = parent.document.getElementById(`${tabbedHeadersToggle}${headerName.toUpperCase()}`) as HTMLElement | null
-  if (button)
-    button.style.color = button.style.color === "red" ?
-      "unset"
-      : "red"
+  const checkButton = parent.document.getElementById(`${tabbedHeadersToggle}${headerName.toUpperCase()}`) as HTMLInputElement | null
+  if (checkButton)
+    logseq.updateSettings({ [`hide${headerName}`]: checkButton.checked })  //設定を更新
 }
 
 
@@ -182,8 +279,7 @@ const openPopupFromToolbar = () => {
     reset: true,
     style: {
       width: "380px",
-      minHeight: "600px",
-      maxHeight: "93vh",
+      height: "93vh",
       overflowY: "auto",
       left: "unset",
       bottom: "unset",
@@ -201,14 +297,15 @@ const openPopupFromToolbar = () => {
         
         <table style="margin-left: auto; margin-right: auto;" id="${keyToggleTableId}">
         <tr>
-        <th><button id="${keyToggleH1}" data-on-click="${keyToggleH1}" title="${t("Toggle for hide")}">h1</button></th>
-        <th><button id="${keyToggleH2}" data-on-click="${keyToggleH2}" title="${t("Toggle for hide")}">h2</button></th>
-        <th><button id="${keyToggleH3}" data-on-click="${keyToggleH3}" title="${t("Toggle for hide")}">h3</button></th>
-        <th><button id="${keyToggleH4}" data-on-click="${keyToggleH4}" title="${t("Toggle for hide")}">h4</button></th>
-        <th><button id="${keyToggleH5}" data-on-click="${keyToggleH5}" title="${t("Toggle for hide")}">h5</button></th>
-        <th><button id="${keyToggleH6}" data-on-click="${keyToggleH6}" title="${t("Toggle for hide")}">h6</button></th>
-        <th><button id="${keyRefreshButton}" data-on-click="${keyRefreshButton}" title="${t("Refresh")}">🔄</button></th>
-        <th><button data-on-click="${keySettingsButton}" title="${t("Plugin Settings")}">⚙️</button></th>
+        <th title="${t("Toggle for hide")}">h1<input type="checkbox" id="${keyToggleH1}" data-on-click="${keyToggleH1}"${logseq.settings!.hideH1 ? `checked="true"` : ""}/></th>
+        <th title="${t("Toggle for hide")}">h2<input type="checkbox" id="${keyToggleH2}" data-on-click="${keyToggleH2}" ${logseq.settings!.hideH2 ? `checked="true"` : ""}/></th>
+        <th title="${t("Toggle for hide")}">h3<input type="checkbox" id="${keyToggleH3}" data-on-click="${keyToggleH3}" ${logseq.settings!.hideH3 ? `checked="true"` : ""}/></th>
+        <th title="${t("Toggle for hide")}">h4<input type="checkbox" id="${keyToggleH4}" data-on-click="${keyToggleH4}" ${logseq.settings!.hideH4 ? `checked="true"` : ""}/></th>
+        <th title="${t("Toggle for hide")}">h5<input type="checkbox" id="${keyToggleH5}" data-on-click="${keyToggleH5}" ${logseq.settings!.hideH5 ? `checked="true"` : ""}/></th>
+        <th title="${t("Toggle for hide")}">h6<input type="checkbox" id="${keyToggleH6}" data-on-click="${keyToggleH6}" ${logseq.settings!.hideH6 ? `checked="true"` : ""}/></th>
+        <th title="${t("Toggle for hide")}\n${t("Black out header sub-blocks when the page is open.")}"> 👀<input type="checkbox" id="${keyToggleStyleForHideBlock}" data-on-click="${keyToggleStyleForHideBlock}" ${logseq.settings!.hideBlockChildren ? `checked="true"` : ""}/></th>
+        <th title="${t("Refresh")}"><button id="${keyRefreshButton}" data-on-click="${keyRefreshButton}">🔄</button></th>
+        <th title="${t("Plugin Settings")}"><button data-on-click="${keySettingsButton}">⚙️</button></th>
         </tr>
         </table>
 
@@ -217,18 +314,18 @@ const openPopupFromToolbar = () => {
         <div id="${keyToolbarContent}"></div>
         </div>
         <style>
-        /* h1,h2,h3,h4,h5,h6を持つブロックの子要素を非表示にする ブロックズームを除く */
-          div.page:has(.page-title) div[haschild="true"].ls-block:has(h1,h2,h3,h4,h5,h6) {
-            &>div.block-children-container {
-              display: none;
-            }
-          }
+          /* h1,h2,h3,h4,h5,h6を持つブロックの子要素を非表示にする ブロックズームを除く */
+          body.${keyToggleStyleForHideBlock} div.page:has(.page-title) div[haschild="true"].ls-block:has(h1,h2,h3,h4,h5,h6)>div.block-children-container:not(:focus-within) {
+              opacity: 0.2;
+              max-height: 200px;
+              overflow-y: auto;
+          } 
         </style>
         `,
   })
-  setTimeout(() =>
+  setTimeout(() => {
     displayHeadersList()//ポップアップの本文を作成・リフレッシュ
-    , 50)
+  }, 50)
 }
 
 
@@ -254,16 +351,23 @@ const displayHeadersList = async () => {
       // console.log(currentPageOrBlockEntity)
       if (currentPageOrBlockEntity.originalName) {
         if (currentPageOrBlockEntity.originalName !== currentPageOriginalName)
-          updateCurrentPage(currentPageOrBlockEntity.originalName as PageEntity["originalName"], currentPageOrBlockEntity.uuid as PageEntity["uuid"])
+          updateCurrentPage(
+            currentPageOrBlockEntity.name as PageEntity["name"],
+            currentPageOrBlockEntity.originalName as PageEntity["originalName"],
+            currentPageOrBlockEntity.uuid as PageEntity["uuid"])
       } else
         if ((currentPageOrBlockEntity as BlockEntity).page) {
-          const pageEntity = await logseq.Editor.getPage((currentPageOrBlockEntity as BlockEntity).page.id) as { uuid: PageEntity["uuid"], originalName: PageEntity["originalName"] }
+          const pageEntity = await logseq.Editor.getPage((currentPageOrBlockEntity as BlockEntity).page.id) as { uuid: PageEntity["uuid"], originalName: PageEntity["originalName"], name: PageEntity["name"] } | null
           if (pageEntity) {
             // console.log("pageEntity is not null")
             // console.log(pageEntity)
             if (pageEntity.originalName
               && pageEntity.originalName !== currentPageOriginalName)
-              updateCurrentPage(pageEntity.originalName, pageEntity.uuid)
+              updateCurrentPage(
+                pageEntity.name,
+                pageEntity.originalName,
+                pageEntity.uuid)
+            currentBlockUuid = (currentPageOrBlockEntity as BlockEntity).uuid
           }
         }
     }
@@ -323,6 +427,7 @@ type HeaderEntity = {
   headerLevel: string // h1, h2, h3, h4, h5, h6
 }
 
+
 const generateHeaderList = async (popupMain: HTMLElement) => {
   const blocksArray = await logseq.Editor.getPageBlocksTree(currentPageUuid) as blockContentWithChildren[]
   if (blocksArray) {
@@ -366,13 +471,50 @@ const createHeaderList = async (
 
   for (const header of filteredHeaders) {
     const innerDiv = document.createElement("div")
+
     const headerCell = document.createElement(header.headerLevel) as HTMLElement
+    if ((header.headerLevel === "h1" && logseq.settings!.hideH1 as boolean === true)
+      || (header.headerLevel === "h2" && logseq.settings!.hideH2 as boolean === true)
+      || (header.headerLevel === "h3" && logseq.settings!.hideH3 as boolean === true)
+      || (header.headerLevel === "h4" && logseq.settings!.hideH4 as boolean === true)
+      || (header.headerLevel === "h5" && logseq.settings!.hideH5 as boolean === true)
+      || (header.headerLevel === "h6" && logseq.settings!.hideH6 as boolean === true))
+      headerCell.style.display = "none"
     const content = await generateContent(header.content, header.properties)
     headerCell.textContent = removeMd(
-      `${(content.includes("collapsed:: true") && content.substring(2, content.length - 16)) ||
+      `${(content.includes("collapsed:: true")
+        && content.substring(2, content.length - 16)) ||
         content.substring(2)}`.trim()
     )
+    //headerCell.dataset.blockid = header.uuid
+    if (currentBlockUuid !== ""
+      && currentBlockUuid === header.uuid)
+      innerDiv.style.backgroundColor = "var(--ls-secondary-background-color)" // ブロックズームで開いていて一致する場合は、背景色を変更
     headerCell.addEventListener("click", openPageForHeaderAsZoom(header.uuid))
+    // マウスオーバーで一致するuuidブロックの・に丸を付ける
+    let mouseOverFlag = false
+    headerCell.addEventListener("mouseover", () => {
+      if (mouseOverFlag) return
+      mouseOverFlag = true
+      // 丸を付ける
+      const block = parent.document.getElementById("dot-" + header.uuid) as HTMLElement | null
+      if (block)
+        block.style.border = "3px double var(--lx-gray-09,var(--ls-border-color,var(--rx-gray-09)))"
+      // ブロック全体に背景色をつける
+      const blockElement = parent.document.querySelector(`div.ls-block[blockid="${header.uuid}"]`) as HTMLElement | null
+      if (blockElement)
+        blockElement.style.backgroundColor = "var(--ls-block-highlight-color,var(--rx-gray-04))"
+    })
+    headerCell.addEventListener("mouseout", () => {
+      if (!mouseOverFlag) return
+      mouseOverFlag = false
+      const block = parent.document.getElementById("dot-" + header.uuid) as HTMLElement | null
+      if (block)
+        block.style.border = "unset"
+      const blockElement = parent.document.querySelector(`div.ls-block[blockid="${header.uuid}"]`) as HTMLElement | null
+      if (blockElement)
+        blockElement.style.backgroundColor = "unset"
+    })
     headerCell.className = "cursor"
     headerCell.title = header.headerLevel
 
@@ -409,7 +551,7 @@ const generateContent = async (
     const blockIdArray = /\(([^(())]+)\)/.exec(content)
     if (blockIdArray)
       for (const blockId of blockIdArray) {
-        const block = await logseq.Editor.getBlock(blockId, { includeChildren: false, })
+        const block = await logseq.Editor.getBlock(blockId, { includeChildren: false, }) as { content: BlockEntity["content"] } | null
         if (block)
           content = content.replace(`((${blockId}))`, block.content.substring(0, block.content.indexOf("id::")))
       }
@@ -474,7 +616,10 @@ const generateSelectForQuickAccess = (removePageName?: string) => {
       const pageEntity = await logseq.Editor.getPage(pageName) as { uuid: PageEntity["uuid"]; name: PageEntity["name"], originalName: PageEntity["originalName"] } | null
       if (pageEntity) {
         logseq.App.pushState('page', { name: pageEntity.name })
-        updateCurrentPage(pageEntity.originalName, pageEntity.uuid)
+        updateCurrentPage(
+          pageEntity.name,
+          pageEntity.originalName,
+          pageEntity.uuid)
         setTimeout(() =>
           displayHeadersList()
           , 20)
@@ -483,6 +628,14 @@ const generateSelectForQuickAccess = (removePageName?: string) => {
     selectPage.appendChild(select)
   }
 }
+
+
+const clickRefreshButton = () => {
+  const refreshButton = parent.document.getElementById(keyRefreshButton) as HTMLElement | null
+  if (refreshButton)
+    refreshButton.click()
+}
+
 
 export function openPageForHeaderAsZoom(uuid: BlockEntity["uuid"]): (this: HTMLElement, ev: MouseEvent) => any {
 
@@ -520,7 +673,9 @@ const generatePageButton = () => {
         openButton.title = thisButtonPageName
         openButton.className = "button"
         openButton.style.whiteSpace = "nowrap"
+        openButton.style.backgroundColor = "var(--ls-secondary-background-color)"
         openButton.addEventListener("click", async ({ shiftKey }) => {
+          currentBlockUuid = "" //ブロックuuidをリセットする
           const pageEntity = await logseq.Editor.getPage(thisButtonPageName, { includeChildren: false }) as { uuid: PageEntity["uuid"], name: PageEntity["name"] } | null
           if (pageEntity) {
             if (shiftKey === true)
@@ -533,22 +688,27 @@ const generatePageButton = () => {
       }
       headerSpace.classList.add("flex")
       headerSpace.style.flexWrap = "nowrap"
-    } else {
-      // ページを開くボタン
-      const openButton = document.createElement("button")
-      openButton.title = currentPageOriginalName
-      openButton.textContent = currentPageOriginalName
-      openButton.className = "button"
-      openButton.style.whiteSpace = "nowrap"
-      openButton.addEventListener("click", ({ shiftKey }) => {
-        if (shiftKey === true)
-          logseq.Editor.openInRightSidebar(currentPageUuid)
-        else
-          logseq.App.pushState('page', { name: currentPageOriginalName })
-      })
-      headerSpace.appendChild(openButton)
-    }
+      headerSpace.appendChild(createOpenButton("🔙"))
+    } else
+      headerSpace.appendChild(createOpenButton(currentPageOriginalName))
   }
+}
+
+
+const createOpenButton = (buttonText: string) => {
+  const openButton = document.createElement("button")
+  openButton.title = currentPageOriginalName
+  openButton.textContent = buttonText
+  openButton.className = "button"
+  openButton.style.whiteSpace = "nowrap"
+  openButton.addEventListener("click", ({ shiftKey }) => {
+    currentBlockUuid = "" //ブロックuuidをリセットする
+    if (shiftKey === true)
+      logseq.Editor.openInRightSidebar(currentPageUuid)
+    else
+      logseq.App.pushState('page', { name: currentPageOriginalName })
+  })
+  return openButton
 }
 
 

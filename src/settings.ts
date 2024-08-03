@@ -11,7 +11,15 @@ export const settingsTemplate = (): SettingSchemaDesc[] => [
         type: "string",
         inputAs: "textarea",
         default: "",
-        description: t("Separate with line breaks"),
+        // 改行区切り
+        // 記入例:
+        // #tagのような文字列
+        //正規表現に対応
+        description: `
+        ${t("Separate with line breaks")}
+        ${t("Example:")}
+        ${t("Remove the string")} >> #tag
+        ${t("Regular expression is supported")} >> #\.side(-[a-z])?
+        `,
     },
-
 ]

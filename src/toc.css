@@ -11,6 +11,10 @@
     padding-top: 1em;
     user-select: none;
 
+    &>div>div div {
+        padding: 0.2em 0.4em;
+    }
+
     & h1,
     & h2,
     & h3,
@@ -29,23 +33,35 @@
             transition: background-color .2s cubic-bezier(0, 1, 0, 1);
         }
 
-        &>div {
-            padding: 0.2em 0.4em;
-            border: 1px solid var(--ls-quaternary-background-color);
+        &::before {
+            font-size: 12px;
+            padding: 1px;
+            opacity: 0.5;
+            color: var(--ls-active-secondary-color);
+            outline: 1px solid var(--ls-active-secondary-color);
+            margin-right: 0.9em;
+            z-index: auto;
         }
     }
 
     & h1 {
-        font-size: 1.6em;
+        font-size: 1.3em;
         margin-top: .8em;
+
+        &::before {
+            content: "h1";
+        }
     }
 
     & h2 {
-        font-size: 1.4em;
+        font-size: 1.2em;
         padding-left: .6em;
         outline: 1px solid var(--ls-quaternary-background-color);
         border-bottom: unset;
-        margin-top: .6em;
+
+        &::before {
+            content: "h2";
+        }
     }
 
     & h2,
@@ -54,31 +70,40 @@
     & h5,
     & h6 {
         margin-top: .5em;
-        display: list-item;
+        /* display: list-item;
         list-style-type: disc;
-        list-style-position: inside;
-    }
-
-    & h3,
-    & h4,
-    & h5,
-    & h6 {
-        padding-top: .6em;
+        list-style-position: inside; */
     }
 
     & h3 {
         padding-left: 1.2em;
+
+        &::before {
+            content: "h3";
+        }
     }
 
     & h4 {
         padding-left: 2.0em;
+
+        &::before {
+            content: "h4";
+        }
     }
 
     & h5 {
         padding-left: 2.8em;
+
+        &::before {
+            content: "h5";
+        }
     }
 
     & h6 {
         padding-left: 3.6em;
+
+        &::before {
+            content: "h6";
+        }
     }
 }
