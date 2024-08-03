@@ -1,34 +1,46 @@
-div#thfpc--toc-content {
-    font-size: .86em;
+#tabbedHeadersToolbarSelectPage>select {
+    background-color: var(--ls-quaternary-background-color);
+}
+
+#tabbedHeadersToolbarContent {
+    margin-bottom: .8em;
+    font-size: .83em;
     padding-bottom: 1.3em;
     padding-left: 0.3em;
     padding-right: 1.3em;
     padding-top: 1em;
     user-select: none;
 
-    &>div {
-        margin-bottom: .8em;
-    }
+    & h1,
+    & h2,
+    & h3,
+    & h4,
+    & h5,
+    & h6 {
+        height: 2.2em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-top: 0.5em;
+        padding-bottom: 0.5em;
 
-    &>h1,
-    &>h2,
-    &>h3,
-    &>h4,
-    &>h5,
-    &>h6 {
         &:hover {
             border-radius: 2px;
             background-color: var(--ls-block-highlight-color);
             transition: background-color .2s cubic-bezier(0, 1, 0, 1);
         }
+
+        &>div {
+            padding: 0.2em 0.4em;
+            border: 1px solid var(--ls-quaternary-background-color);
+        }
     }
 
-    &>h1 {
+    & h1 {
         font-size: 1.6em;
         margin-top: .8em;
     }
 
-    &>h2 {
+    & h2 {
         font-size: 1.4em;
         padding-left: .6em;
         outline: 1px solid var(--ls-quaternary-background-color);
@@ -36,37 +48,37 @@ div#thfpc--toc-content {
         margin-top: .6em;
     }
 
-    &>h2,
-    &>h3,
-    &>h4,
-    &>h5,
-    &>h6 {
+    & h2,
+    & h3,
+    & h4,
+    & h5,
+    & h6 {
         margin-top: .5em;
         display: list-item;
         list-style-type: disc;
         list-style-position: inside;
     }
 
-    &>h3,
-    &>h4,
-    &>h5,
-    &>h6 {
+    & h3,
+    & h4,
+    & h5,
+    & h6 {
         padding-top: .6em;
     }
 
-    &>h3 {
+    & h3 {
         padding-left: 1.2em;
     }
 
-    &>h4 {
+    & h4 {
         padding-left: 2.0em;
     }
 
-    &>h5 {
+    & h5 {
         padding-left: 2.8em;
     }
 
-    &>h6 {
+    & h6 {
         padding-left: 3.6em;
     }
 }

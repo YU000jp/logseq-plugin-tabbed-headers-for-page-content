@@ -28,9 +28,11 @@ const pluginName = "Tabbed Headers for Page Content"
 const keyToolbar = "tabbedHeadersToolbar"
 const icon = "🪧"
 const keyToolbarPopup = "tabbedHeadersToolbarPopup"
+const keyToolbarSelectPage = "tabbedHeadersToolbarSelectPage"
 const keyToolbarHeaderSpace = "tabbedHeadersToolbarHeaderSpace"
 const keyToggleTableId = "thfpc--toggleHeader"
 const tabbedHeadersToggle = "tabbedHeadersToggle"
+const keySettingsButton = "tabbedHeadersSettingsButton"
 const keyToggleH1 = `${tabbedHeadersToggle}H1`
 const keyToggleH2 = `${tabbedHeadersToggle}H2`
 const keyToggleH3 = `${tabbedHeadersToggle}H3`
@@ -38,7 +40,6 @@ const keyToggleH4 = `${tabbedHeadersToggle}H4`
 const keyToggleH5 = `${tabbedHeadersToggle}H5`
 const keyToggleH6 = `${tabbedHeadersToggle}H6`
 const keyToolbarContent = "tabbedHeadersToolbarContent"
-const keyHeaderListUlId = "thfpc--toc-content"
 const keyRefreshButton = "tabbedHeadersRefreshButton"
 
 //現在のページ名とuuidの保持
@@ -49,6 +50,18 @@ let currentPageUuid: PageEntity["uuid"] = ""
 const updateCurrentPage = async (pageName: string, pageUuid: PageEntity["uuid"]) => {
   currentPageOriginalName = pageName
   currentPageUuid = pageUuid
+
+  // logseq.settings!.historyに、配列をつくって、ページ名を履歴にいれる (重複させない)
+  const history = logseq.settings!.history as string[] || []
+  if (history.length === 0) {
+    history.push(pageName)
+    logseq.updateSettings({ history })
+  } else {
+    if (!history.includes(pageName)) {
+      history.unshift(pageName)
+      logseq.updateSettings({ history: history.slice(0, 10) })
+    }
+  }
 }
 
 
@@ -70,22 +83,11 @@ const main = async () => {
   //CSS
   logseq.provideStyle(`
   body>div#tabbed-headers-for-page-content--${keyToolbarPopup} {
-    & table#${keyToggleTableId} th {
-      padding: 0.5em;
-    }
-    & ul#${keyHeaderListUlId} {
-      min-height: 300px;
-      font-size: 0.88em;
-      & li {
-        height: 2.2em;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        padding-top: 0.5em;
-        padding-bottom: 0.5em;
-      }
-    }
-    & #${keyToggleTableId} {
+    & table#${keyToggleTableId} {
       font-size: 0.85em;
+      & th {
+        padding: 0.5em;
+      }
     }
     & button {
       opacity: 0.7;
@@ -118,6 +120,9 @@ const main = async () => {
 
     //リフレッシュボタンを押したらポップアップの本文をリフレッシュ
     [keyRefreshButton]: () => displayHeadersList(),
+
+    //設定ボタンを押したら設定画面を表示
+    [keySettingsButton]: () => logseq.showSettingsUI(),
 
     //h1の表示・非表示
     [keyToggleH1]: () => hideHeaderFromList("H1"),
@@ -176,22 +181,24 @@ const openPopupFromToolbar = () => {
     key: keyToolbarPopup,
     reset: true,
     style: {
-      width: "370px",
-      height: "600px",
+      width: "380px",
+      minHeight: "600px",
+      maxHeight: "93vh",
       overflowY: "auto",
       left: "unset",
       bottom: "unset",
       right: "1em",
       top: "4em",
-      paddingLeft: "2em",
-      paddingTop: "2em",
+      paddingLeft: "0.2em",
+      paddingTop: "0.2em",
       backgroundColor: 'var(--ls-primary-background-color)',
       color: 'var(--ls-primary-text-color)',
       boxShadow: '1px 2px 5px var(--ls-secondary-background-color)',
     },
     template: `
         <div title="">
-        <p id="${keyToolbarHeaderSpace}"></p>
+        <div id="${keyToolbarSelectPage}"></div>
+        
         <table style="margin-left: auto; margin-right: auto;" id="${keyToggleTableId}">
         <tr>
         <th><button id="${keyToggleH1}" data-on-click="${keyToggleH1}" title="${t("Toggle for hide")}">h1</button></th>
@@ -200,9 +207,13 @@ const openPopupFromToolbar = () => {
         <th><button id="${keyToggleH4}" data-on-click="${keyToggleH4}" title="${t("Toggle for hide")}">h4</button></th>
         <th><button id="${keyToggleH5}" data-on-click="${keyToggleH5}" title="${t("Toggle for hide")}">h5</button></th>
         <th><button id="${keyToggleH6}" data-on-click="${keyToggleH6}" title="${t("Toggle for hide")}">h6</button></th>
+        <th><button id="${keyRefreshButton}" data-on-click="${keyRefreshButton}" title="${t("Refresh")}">🔄</button></th>
+        <th><button data-on-click="${keySettingsButton}" title="${t("Plugin Settings")}">⚙️</button></th>
         </tr>
         </table>
+
         <hr/>
+        <p id="${keyToolbarHeaderSpace}"></p>
         <div id="${keyToolbarContent}"></div>
         </div>
         <style>
@@ -273,19 +284,18 @@ const displayHeadersList = async () => {
       await generateHeaderList(popupMain)
     }
 
+    // ページセレクトボックスを表示
+    generateSelectForQuickAccess(currentPageOriginalName)
 
-    setTimeout(() => {
-      //hr
-      popupMain.appendChild(document.createElement("hr"))
-      // タイムスタンプを反映
-      popupMain.appendChild(createTimestampAndUpdateButton())
-    }, 1000)
-  }
+  } else
+    // ページセレクトボックスを表示
+    generateSelectForQuickAccess()
 }
 
 
 const getHeaderLevel = (header: string): number => {
-  const match = header.match(/^(#+)\s/)
+  // 「# 」や「## 」「### 」「#### 」「##### 」「###### 」のいずれかで始まる
+  const match = header.match(/^(#{1,6})\s/) as RegExpMatchArray | null
   if (match)
     return match[1].length
   else
@@ -298,50 +308,40 @@ const noHeadersFound = (popupMain: HTMLElement) => {
 }
 
 
-const createTimestampAndUpdateButton = () => {
-  const timestamp = document.createElement("p")
-  timestamp.textContent = new Date().toLocaleString()
-  timestamp.className = "flex justify-between text-sm"
-  // リフレッシュボタン
-  const refreshButton = document.createElement("button")
-  refreshButton.className = "button"
-  refreshButton.textContent = "🔄"
-  refreshButton.title = t("Refresh")
-  refreshButton.dataset.onClick = keyRefreshButton
-  timestamp.appendChild(refreshButton)
-  return timestamp
+type blockContentWithChildren = {
+  content: BlockEntity["content"]
+  uuid: BlockEntity["uuid"]
+  properties: BlockEntity["properties"]
+  children: BlockEntity["children"]
 }
 
+type HeaderEntity = {
+  content: BlockEntity["content"]
+  uuid: BlockEntity["uuid"]
+  properties: BlockEntity["properties"]
+  children: BlockEntity["children"]
+  headerLevel: string // h1, h2, h3, h4, h5, h6
+}
 
 const generateHeaderList = async (popupMain: HTMLElement) => {
-  const headerListArray = await logseq.Editor.getPageBlocksTree(currentPageUuid) as {
-    content: BlockEntity["content"]
-    uuid: BlockEntity["uuid"]
-    properties: BlockEntity["properties"]
-  }[]
-  // console.log(headerListArray);
-  if (headerListArray) {
+  const blocksArray = await logseq.Editor.getPageBlocksTree(currentPageUuid) as blockContentWithChildren[]
+  if (blocksArray) {
+    //console.log(headerListArray)
     // 「# 」や「## 」「### 」「#### 」「##### 」「###### 」のいずれかで始まるヘッダーをもつcontentのみを抽出する
-    const filteredHeaders = headerListArray
-      .filter((block) => {
-        const headerLevel = getHeaderLevel(block.content)
-        return headerLevel > 0 && headerLevel <= 6
-      })
+    const filteredHeaders = blocksArray
+      .filter(isValidHeader)
       .map((block) => ({
         content: block.content,
         uuid: block.uuid,
         properties: block.properties,
+        children: block.children,
         headerLevel: `h${getHeaderLevel(block.content)}`
-      })) as {
-        content: BlockEntity["content"]
-        uuid: BlockEntity["uuid"]
-        properties: BlockEntity["properties"],
-        headerLevel: string
-      }[]
+      })) as HeaderEntity[] || []
     //console.log(filteredHeaders)
 
-    if (filteredHeaders) // ページコンテンツにヘッダーがある場合
-      createHeaderList(filteredHeaders, headerListArray, popupMain)
+    if (filteredHeaders
+      && filteredHeaders.length > 0) // ページコンテンツにヘッダーがある場合
+      createHeaderList(filteredHeaders, blocksArray, popupMain)
     else
       noHeadersFound(popupMain)
   } else
@@ -349,58 +349,52 @@ const generateHeaderList = async (popupMain: HTMLElement) => {
 }
 
 
-const generatePageButton = () => {
-  const headerSpace = parent.document.getElementById(keyToolbarHeaderSpace) as HTMLElement | null
-  if (headerSpace) {
-    headerSpace.innerHTML = ""//リフレッシュ
 
-    // ページを開くボタン
-    const openButton = document.createElement("button")
-    openButton.title = currentPageOriginalName
-    openButton.textContent = currentPageOriginalName
-    openButton.className = "button"
-    openButton.style.whiteSpace = "nowrap"
-    openButton.addEventListener("click", ({ shiftKey }) => {
-      if (shiftKey === true)
-        logseq.Editor.openInRightSidebar(currentPageUuid)
 
-      else
-        logseq.App.pushState('page', { name: currentPageOriginalName })
-    })
-    headerSpace.appendChild(openButton)
-  }
+const isValidHeader = (child: blockContentWithChildren): boolean => {
+  const headerLevel = getHeaderLevel(child.content.split("\n")[0] || child.content)
+  return headerLevel > 0 && headerLevel < 7
 }
 
 
-const createHeaderList = async (filteredHeaders: {
-  content: BlockEntity["content"]
-  uuid: BlockEntity["uuid"]
-  properties: BlockEntity["properties"]
-  headerLevel: string // h1, h2, h3, h4, h5, h6
-}[], headerListArray: {
-  content: BlockEntity["content"]
-  uuid: BlockEntity["uuid"]
-}[], popupMain: HTMLElement) => {
-  // ulを作成
-  const divElement = document.createElement("div")
-  divElement.id = keyHeaderListUlId
+const createHeaderList = async (
+  filteredHeaders: HeaderEntity[],
+  headerListArray: { content: BlockEntity["content"]; uuid: BlockEntity["uuid"] }[],
+  popupMain: HTMLElement
+) => {
+  const divContainer = document.createElement("div")
 
   for (const header of filteredHeaders) {
-    // ヘッダー名のセルを作成
+    const innerDiv = document.createElement("div")
     const headerCell = document.createElement(header.headerLevel) as HTMLElement
-
     const content = await generateContent(header.content, header.properties)
     headerCell.textContent = removeMd(
-      `${(content.includes("collapsed:: true")
-        && content.substring(2, content.length - 16))
-        || content.substring(2)}`.trim()
+      `${(content.includes("collapsed:: true") && content.substring(2, content.length - 16)) ||
+        content.substring(2)}`.trim()
     )
-    headerCell.addEventListener("click", openPageForHeaderAsZoom(headerListArray, header))
-    divElement.appendChild(headerCell)
+    headerCell.addEventListener("click", openPageForHeaderAsZoom(header.uuid))
+    headerCell.className = "cursor"
+    headerCell.title = header.headerLevel
+
+    if (header.children
+      && header.children.length > 0) {
+      const children = (header.children as blockContentWithChildren[])
+        .filter(isValidHeader)
+        .map((child) => ({
+          content: child.content,
+          uuid: child.uuid, // ブロックのuuid TODO: オプション追加予定
+          properties: child.properties,
+          children: child.children,
+          headerLevel: `h${getHeaderLevel(child.content)}`
+        })) as HeaderEntity[] || []
+      if (children.length > 0)
+        createHeaderList(children, headerListArray, innerDiv)
+    }
+    innerDiv.appendChild(headerCell)
+    divContainer.appendChild(innerDiv)
   }
 
-  // ヘッダー一覧を反映
-  popupMain.appendChild(divElement)
+  popupMain.appendChild(divContainer)
 }
 
 
@@ -453,22 +447,107 @@ const toggleHeaderVisibility = (headerName: string) => {
       : "none"
 }
 
-export function openPageForHeaderAsZoom(headerListArray: {
-  content: BlockEntity["content"]
-  uuid: BlockEntity["uuid"]
-}[], header: {
-  content: BlockEntity["content"]
-  uuid: BlockEntity["uuid"]
-}): (this: HTMLElement, ev: MouseEvent) => any {
+const generateSelectForQuickAccess = (removePageName?: string) => {
+  const selectPage = parent.document.getElementById(keyToolbarSelectPage) as HTMLElement | null
+  if (selectPage) {
+    selectPage.innerHTML = ""
+    const select = document.createElement("select")
+    // logseq.settings!.historyにあるページ名をセレクトボックスに追加
+    const history = logseq.settings!.history as string[] || []
+    // 先頭の空白オプション
+    const option = document.createElement("option")
+    option.value = ""
+    // ページ選択の初期値 クイックアクセス
+    option.textContent = t("Quick access")
+    select.appendChild(option)
+    for (const pageName of history) {
+      if (removePageName
+        && pageName === removePageName) continue // 現在のページ名は除外
+      const option = document.createElement("option")
+      option.value = pageName
+      option.textContent = pageName
+      select.appendChild(option)
+    }
+    select.addEventListener("change", async (ev) => {
+      const pageName = (ev.target as HTMLSelectElement).value
+      if (pageName === "") return
+      const pageEntity = await logseq.Editor.getPage(pageName) as { uuid: PageEntity["uuid"]; name: PageEntity["name"], originalName: PageEntity["originalName"] } | null
+      if (pageEntity) {
+        logseq.App.pushState('page', { name: pageEntity.name })
+        updateCurrentPage(pageEntity.originalName, pageEntity.uuid)
+        setTimeout(() =>
+          displayHeadersList()
+          , 20)
+      }
+    })
+    selectPage.appendChild(select)
+  }
+}
+
+export function openPageForHeaderAsZoom(uuid: BlockEntity["uuid"]): (this: HTMLElement, ev: MouseEvent) => any {
 
   return ({ shiftKey }) => {
-    // header.uuidをもつblockEntityを取得
-    const blockEntity = headerListArray.find((block) => block.content === header.content) as { uuid: BlockEntity["uuid"] }
     if (shiftKey === true)
-      logseq.Editor.openInRightSidebar(blockEntity.uuid)
+      logseq.Editor.openInRightSidebar(uuid)
     else
-      logseq.App.pushState('page', { name: blockEntity.uuid }) // ズームページを開く
-    logseq.Editor.setBlockCollapsed(blockEntity.uuid, false)
+      logseq.App.pushState('page', { name: uuid }) // ズームページを開く
+    logseq.Editor.setBlockCollapsed(uuid, false)
+  }
+}
+
+
+
+const generatePageButton = () => {
+  const headerSpace = parent.document.getElementById(keyToolbarHeaderSpace) as HTMLElement | null
+  if (headerSpace) {
+    headerSpace.innerHTML = ""//リフレッシュ
+
+    //currentPageOriginalNameに 「/」が含まれている場合は、分割する
+    if (currentPageOriginalName.includes("/")) {
+      //「Logseq/プラグイン/A」のような場合は、「Logseq」「プラグイン」「A」 それぞれにリンクを持たせる。ただし、リンクは「Logseq/プラグイン」のように親の階層を含める必要がある
+      const pageNames = currentPageOriginalName.split("/")
+      let parentPageName = ""
+      for (const pageName of pageNames) {
+        // ページを開くボタン
+        const openButton = document.createElement("button")
+        openButton.textContent = parentPageName === "" ?
+          pageName
+          : "/" + pageName
+        parentPageName += parentPageName === "" ?
+          pageName
+          : `/${pageName}`
+        const thisButtonPageName = parentPageName
+        openButton.title = thisButtonPageName
+        openButton.className = "button"
+        openButton.style.whiteSpace = "nowrap"
+        openButton.addEventListener("click", async ({ shiftKey }) => {
+          const pageEntity = await logseq.Editor.getPage(thisButtonPageName, { includeChildren: false }) as { uuid: PageEntity["uuid"], name: PageEntity["name"] } | null
+          if (pageEntity) {
+            if (shiftKey === true)
+              logseq.Editor.openInRightSidebar(pageEntity.uuid)
+            else
+              logseq.App.pushState('page', { name: pageEntity.name })
+          }
+        })
+        headerSpace.appendChild(openButton)
+      }
+      headerSpace.classList.add("flex")
+      headerSpace.style.flexWrap = "nowrap"
+    } else {
+      // ページを開くボタン
+      const openButton = document.createElement("button")
+      openButton.title = currentPageOriginalName
+      openButton.textContent = currentPageOriginalName
+      openButton.className = "button"
+      openButton.style.whiteSpace = "nowrap"
+      openButton.addEventListener("click", ({ shiftKey }) => {
+        if (shiftKey === true)
+          logseq.Editor.openInRightSidebar(currentPageUuid)
+        else
+          logseq.App.pushState('page', { name: currentPageOriginalName })
+      })
+      headerSpace.appendChild(openButton)
+    }
   }
 }
 
