@@ -1,12 +1,12 @@
 {
-    "name": "logseq-plugin-tabbed-headers-for-page-content",
-    "description": "Turn the header of the page content into a tab. This allows the page to be divided into separate pages, separated by headers!",
-    "repository": "https://github.com/YU000jp/logseq-plugin-tabbed-headers-for-page-content.git",
+    "name": "logseq-plugin-toc-with-sub-pages",
+    "description": "Table of contents facility for showing or dividing comprehensive page!",
+    "repository": "https://github.com/YU000jp/logseq-plugin-toc-with-sub-pages.git",
     "author": "YU000jp",
     "license": "MIT",
     "logseq": {
-        "id": "tabbed-headers-for-page-content",
-        "title": "Tabbed Headers for Page Content (TOC)",
+        "id": "logseq-plugin-toc-with-sub-pages",
+        "title": "Table of contents with sub-pages (TOC / Hierarchy)",
         "icon": "./icon.svg",
         "main": "./dist/index.html"
     },
