@@ -26,6 +26,17 @@ const createHierarchyList = async (hierarchyElement: HTMLElement) => {
 
   const getArrayFromQuery = await getPageHierarchyOrNameRelatedFromQuery(currentPageName) as queryItemShort
 
+  //ページ名に階層が含まれている場合、その最後の階層をもとにクエリーを取得する
+  if (currentPageName.includes("/")
+    && logseq.settings!.queryLastHierarchy as boolean === true) {
+    const currentPageHierarchy = currentPageName.split("/")
+    const lastHierarchy = currentPageHierarchy[currentPageHierarchy.length - 1] //最後の階層を取得
+    if (lastHierarchy !== currentPageName) {
+      const getArrayFromQueryLastHierarchy = await getPageHierarchyOrNameRelatedFromQuery(lastHierarchy) as queryItemShort
+      if (getArrayFromQueryLastHierarchy.length > 0)
+        getArrayFromQuery.push(...getArrayFromQueryLastHierarchy)
+    }
+  }
   if (getArrayFromQuery.length === 0) return
 
   //console.log(getArrayFromQuery)

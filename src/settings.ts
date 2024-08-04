@@ -29,4 +29,11 @@ export const settingsTemplate = (): SettingSchemaDesc[] => [
         default: true,
         description: "",
     },
+    {//ページ名に階層が含まれている場合、その最後の階層をもとにクエリーを取得する
+        key: "queryLastHierarchy",
+        title: t("Query the last hierarchy if the page name contains a hierarchy"),
+        type: "boolean",
+        default: true,
+        description: "",
+    },
 ]
