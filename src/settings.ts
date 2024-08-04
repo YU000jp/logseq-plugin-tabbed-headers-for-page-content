@@ -22,4 +22,11 @@ export const settingsTemplate = (): SettingSchemaDesc[] => [
         ${t("Regular expression is supported")} >> #\.side(-[a-z])?
         `,
     },
+    {//目次にサブページを表示するかどうか
+        key: "tocShowSubPage",
+        title: t("Show sub-pages in table of contents"),
+        type: "boolean",
+        default: true,
+        description: "",
+    },
 ]

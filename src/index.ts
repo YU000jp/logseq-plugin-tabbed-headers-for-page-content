@@ -60,12 +60,12 @@ const updateCurrentPage = async (pageName: string, originalName: string, pageUui
   // logseq.settings!.historyに、配列をつくって、ページ名を履歴にいれる (重複させない)
   const history = logseq.settings!.history as string[] || []
   if (history.length === 0) {
-    history.push(pageName)
+    history.push(originalName)
     logseq.updateSettings({ history })
   } else {
-    if (!history.includes(pageName)) {
+    if (!history.includes(originalName)) {
       //TODO: お気に入りと重複させないようにするオプション
-      history.unshift(pageName)
+      history.unshift(originalName)
       logseq.updateSettings({ history: history.slice(0, 16) })
     }
   }
