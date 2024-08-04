@@ -51,8 +51,8 @@ export let currentPageName: PageEntity["name"] = ""
 export let currentPageUuid: PageEntity["uuid"] = ""
 export let currentBlockUuid: BlockEntity["uuid"] = ""
 
-export const updateBlockUuid = (uuid: BlockEntity["uuid"]) => {
-  currentBlockUuid = uuid
+export const updateBlockUuid = (uuid?: BlockEntity["uuid"]) => {
+  currentBlockUuid = uuid ? uuid : ""
 }
 
 
@@ -250,28 +250,22 @@ export const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
       popupMain.innerHTML = ""//リフレッシュ
 
       if (pageUuid) {
-
         const pageEntity = await logseq.Editor.getPage(pageUuid, { includeChildren: false }) as pageEntityShort | null
-        if (pageEntity) {
-          updateCurrentPage(
+        if (pageEntity)
+          await updateCurrentPage(
             pageEntity.name,
             pageEntity.originalName,
-            pageEntity.uuid,
-          )
-        }
+            pageEntity.uuid)
       } else {
-
         const currentPageOrBlockEntity = await logseq.Editor.getCurrentPage() as PageEntity | BlockEntity | null
         if (currentPageOrBlockEntity) {
-          // console.log("currentPageEntity is not null")
-          // console.log(currentPageOrBlockEntity)
+
           if (currentPageOrBlockEntity.originalName) {
             if (currentPageOrBlockEntity.originalName !== currentPageOriginalName)
-              updateCurrentPage(
+              await updateCurrentPage(
                 currentPageOrBlockEntity.name as PageEntity["name"],
                 currentPageOrBlockEntity.originalName as PageEntity["originalName"],
-                currentPageOrBlockEntity.uuid as PageEntity["uuid"],
-              )
+                currentPageOrBlockEntity.uuid as PageEntity["uuid"])
           } else
             if ((currentPageOrBlockEntity as BlockEntity).page) {
               const pageEntity = await logseq.Editor.getPage((currentPageOrBlockEntity as BlockEntity).page.id, { includeChildren: false }) as pageEntityShort | null
@@ -280,20 +274,18 @@ export const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
                 // console.log(pageEntity)
                 if (pageEntity.originalName
                   && pageEntity.originalName !== currentPageOriginalName)
-                  updateCurrentPage(
+                  await updateCurrentPage(
                     pageEntity.name,
                     pageEntity.originalName,
-                    pageEntity.uuid,
-                  )
+                    pageEntity.uuid)
                 currentBlockUuid = (currentPageOrBlockEntity as BlockEntity).uuid
-              }
-            }
-        }
-      }
+              } //end if pageEntity
+            } //end if currentPageOrBlockEntity
+        } //end if currentPageOrBlockEntity
+      }//end if pageUuid
 
       if (currentPageOriginalName === "") {
         // ページでもなく、ズームページでもない場合 または、ページ名が取得できない場合
-
         // メッセージを表示して、ポップアップを閉じる
         noHeadersFound(popupMain)
         setTimeout(() =>
@@ -307,11 +299,10 @@ export const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
       }
       // ページセレクトボックスを表示
       generateSelectForQuickAccess(currentPageOriginalName)
-    }
-    //end if popupMain
+    }//end if popupMain
 
   }, 10)
-}
+}//end_displayHeadersList
 
 
 logseq.ready(main).catch(console.error)

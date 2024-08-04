@@ -15,9 +15,39 @@
 }
 
 #twsToolbarHierarchy {
-    max-height: 20vh;
+    max-height: 30vh;
     overflow: auto;
     font-size: 0.84em;
+
+    & details.tws--hierarchy-group {
+        display: flex;
+        flex-direction: column;
+        margin-top: 0.3em;
+        margin-bottom: 0.3em;
+        padding-left: 1em;
+        padding-right: 0.3em;
+        padding-top: 0.8em;
+        padding-bottom: 0.3em;
+        background-color: var(--ls-quaternary-background-color);
+        font-weight: bold;
+
+        &>summary>button {
+            display: inline-block;
+            max-width: 90%;
+            white-space: nowrap;
+            overflow: auto;
+        }
+    }
+
+    & button.tws--hierarchy-item {
+        display: flex;
+        flex-direction: row;
+        padding-left: 3em;
+        padding-right: 0.2em;
+        padding-top: 0.2em;
+        padding-bottom: 0.2em;
+        background-color: var(--ls-quaternary-background-color);
+    }
 }
 
 #tws--toggleHeader {
@@ -49,6 +79,7 @@
         padding: 0.2em 0.4em;
     }
 
+    /* If the user makes changes, increase the level of detail, e.g. 'body #twsToolbarContent h1 { }'. */
     & h1,
     & h2,
     & h3,

@@ -5,6 +5,7 @@ import { currentBlockUuid, currentPageOriginalName, currentPageUuid, displayHead
 import { removeListWords, removeMarkdownAliasLink, removeMarkdownImage, removeMarkdownLink, removeProperties, replaceOverCharacters } from "./markdown"
 import { HeaderEntity, blockContentWithChildren, pageEntityShort } from './type'
 
+
 export const generateContent = async (
   content: string,
   properties: BlockEntity["properties"]
@@ -45,6 +46,7 @@ export const generateContent = async (
 
   return content
 }
+
 
 export const createHeaderList = async (
   filteredHeaders: HeaderEntity[],
@@ -129,22 +131,26 @@ export const createHeaderList = async (
 
   popupMain.appendChild(divContainer)
 }
+
+
 export const getHeaderLevel = (header: string): number => {
   // 「# 」や「## 」「### 」「#### 」「##### 」「###### 」のいずれかで始まる
   const match = header.match(/^(#{1,6})\s/) as RegExpMatchArray | null
-  if (match)
-    return match[1].length
-
-  else
-    return 0
+  return match ? match[1].length : 0
 }
+
+
 export const noHeadersFound = (popupMain: HTMLElement) => {
   popupMain.appendChild(document.createElement("p")).textContent = t("No headers found.")
 }
+
+
 export const isValidHeader = (child: blockContentWithChildren): boolean => {
   const headerLevel = getHeaderLevel(child.content.split("\n")[0] || child.content)
   return headerLevel > 0 && headerLevel < 7
 }
+
+
 export const generateHeaderList = async (popupMain: HTMLElement) => {
   const blocksArray = await logseq.Editor.getPageBlocksTree(currentPageUuid) as blockContentWithChildren[]
   if (blocksArray) {
@@ -163,13 +169,13 @@ export const generateHeaderList = async (popupMain: HTMLElement) => {
     if (filteredHeaders
       && filteredHeaders.length > 0) // ページコンテンツにヘッダーがある場合
       createHeaderList(filteredHeaders, blocksArray, popupMain)
-
     else
       noHeadersFound(popupMain)
-  }
-  else
+  } else
     noHeadersFound(popupMain)
 }
+
+
 export function openPageForHeaderAsZoom(uuid: BlockEntity["uuid"], content: BlockEntity["content"]): (ev: MouseEvent) => any {
   return async ({ shiftKey, ctrlKey }) => {
     if (shiftKey === true) {
@@ -181,15 +187,19 @@ export function openPageForHeaderAsZoom(uuid: BlockEntity["uuid"], content: Bloc
       const msg = await logseq.UI.showMsg("🔎 " + t("Moving the selected block to a sub-page..."), "info", { timeout: 4000 })
       const newPageName = `${currentPageOriginalName}/${content}`
       // ここにconfirm実装
+
+
+
+
       //作成する場合
       const newSubPageEntity = await logseq.Editor.createPage(newPageName, currentPageUuid, { redirect: false, createFirstBlock: false }) as pageEntityShort | null
       if (newSubPageEntity) {
         logseq.Editor.moveBlock(uuid, newSubPageEntity.uuid)
         logseq.UI.closeMsg(msg)
         logseq.UI.showMsg("🔎 " + t("The selected block has been moved to a sub-page."), "success", { timeout: 4000 })
-        setTimeout(() => {
+        setTimeout(async () => {
           logseq.App.pushState('page', { name: newSubPageEntity.name })
-          updateCurrentPage(
+          await updateCurrentPage(
             newSubPageEntity.name,
             newSubPageEntity.originalName,
             newSubPageEntity.uuid

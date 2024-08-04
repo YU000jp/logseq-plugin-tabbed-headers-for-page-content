@@ -27,6 +27,7 @@ export interface pageEntityShort {
 
 export type queryItemShort = Array<{
   "original-name": string
-  uuid: string
+  uuid: string,
+  "original-name-before"?: string
 }>
 

@@ -108,16 +108,18 @@ export const generatePageButton = () => {
           openButton.className = "button"
           openButton.style.whiteSpace = "nowrap"
           openButton.style.backgroundColor = "var(--ls-secondary-background-color)"
-          openButton.addEventListener("click", async ({ shiftKey }) => {
-            updateBlockUuid("")//ブロックuuidをリセットする
+          openButton.addEventListener("click", async ({ shiftKey, ctrlKey }) => {
+            updateBlockUuid()//ブロックuuidをリセットする
             const pageEntity = await logseq.Editor.getPage(thisButtonPageName, { includeChildren: false }) as { uuid: PageEntity["uuid"] } | null
             if (pageEntity)
               if (shiftKey === true)
                 logseq.Editor.openInRightSidebar(pageEntity.uuid)
-
               else
-                // 目次の更新だけおこなう
-                displayHeadersList(pageEntity.uuid)
+                if (ctrlKey === true)
+                  logseq.App.pushState('page', { name: thisButtonPageName })
+                else
+                  // 目次の更新だけおこなう
+                  displayHeadersList(pageEntity.uuid)
           })
           headerSpace.appendChild(openButton)
         }
@@ -172,10 +174,9 @@ export const createOpenButton = (buttonText: string, title: string) => {
   openButton.className = "button"
   openButton.style.whiteSpace = "nowrap"
   openButton.addEventListener("click", ({ shiftKey }) => {
-    updateBlockUuid("")//ブロックuuidをリセットする
+    updateBlockUuid()//ブロックuuidをリセットする
     if (shiftKey === true)
       logseq.Editor.openInRightSidebar(currentPageUuid)
-
     else
       logseq.App.pushState('page', { name: currentPageOriginalName })
   })
