@@ -30,7 +30,7 @@ const icon = "🪧"
 const keyToolbarPopup = "twsToolbarPopup"
 const keyToolbarSelectPage = "twsToolbarSelectPage"
 const keyToolbarHeaderSpace = "twsToolbarHeaderSpace"
-const keyToggleTableId = "thfpc--toggleHeader"
+const keyToggleTableId = "tws--toggleHeader"
 const keySettingsButton = "twsSettingsButton"
 const twsToggle = "twsToggle"
 const keyToggleH1 = `${twsToggle}H1`
@@ -64,7 +64,7 @@ const updateCurrentPage = async (pageName: string, originalName: string, pageUui
     logseq.updateSettings({ history })
   } else {
     if (!history.includes(originalName)) {
-      //TODO: お気に入りと重複させないようにするオプション
+      //お気に入りと重複させないようにするオプションは不要かも。
       history.unshift(originalName)
       logseq.updateSettings({ history: history.slice(0, 16) })
     }
@@ -129,28 +129,7 @@ const main = async () => {
 
   //CSS
   logseq.provideStyle(`
-  body>div#logseq-plugin-toc-with-sub-pages--${keyToolbarPopup} {
-    & #${keyToggleTableId} {
-      font-size: 0.85em;
-      opacity: 0.7;
-      margin-left: auto;
-      margin-right: auto;
-      & th {
-        padding: 0.5em;
-      }
-    }
-    & button {
-      opacity: 0.7;
-      &:hover {
-        opacity: 1;
-        text-decoration: underline;
-      }
-    }
-    & hr {
-      margin-top: 1em;
-      margin-bottom: 1em;
-    }
-  }
+
   ${cssToc}
   `)
 
@@ -183,7 +162,7 @@ const main = async () => {
 
       let state = false
 
-      //body.classに「thfpc--hide-block」がある場合は削除する
+      //body.classに「tws--hide-block」がある場合は削除する
       if (parent.document.body.classList.contains(keyToggleStyleForHideBlock))
         parent.document.body.classList.remove(keyToggleStyleForHideBlock)
       else {
@@ -251,7 +230,6 @@ const routeCheck = () => {
   setTimeout(() => processingRouteCheck = false, 300)
   clickRefreshButton()
 }
-
 
 
 let processingButton = false

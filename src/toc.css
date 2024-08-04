@@ -1,5 +1,33 @@
-#twsToolbarSelectPage>select {
+#logseq-plugin-toc-with-sub-pages--twsToolbarPopup {
+    & button {
+        opacity: 0.7;
+
+        &:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+    }
+
+    & hr {
+        margin-top: 1em;
+        margin-bottom: 1em;
+    }
+}
+
+#tws--toggleHeader {
+    font-size: 0.85em;
+    opacity: 0.7;
+    margin-left: auto;
+    margin-right: auto;
+
+    & th {
+        padding: 0.5em;
+    }
+}
+
+& #twsToolbarSelectPage>select {
     background-color: var(--ls-quaternary-background-color);
+    width: 100%;
 }
 
 #twsToolbarContent {
@@ -45,7 +73,7 @@
     }
 
     & h1 {
-        font-size: 1.3em;
+        font-size: 1.1em;
         margin-top: .8em;
 
         &::before {
