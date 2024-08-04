@@ -339,7 +339,7 @@ const openPopupFromToolbar = () => {
 let processing = false
 
 //ポップアップの本文を作成・リフレッシュ
-const displayHeadersList = async () => {
+const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
   if (processing) return
   processing = true
   setTimeout(async () => {
@@ -350,31 +350,42 @@ const displayHeadersList = async () => {
     if (popupMain) {
       popupMain.innerHTML = ""//リフレッシュ
 
-      const currentPageOrBlockEntity = await logseq.Editor.getCurrentPage() as PageEntity | BlockEntity | null
-      if (currentPageOrBlockEntity) {
-        // console.log("currentPageEntity is not null")
-        // console.log(currentPageOrBlockEntity)
-        if (currentPageOrBlockEntity.originalName) {
-          if (currentPageOrBlockEntity.originalName !== currentPageOriginalName)
-            updateCurrentPage(
-              currentPageOrBlockEntity.name as PageEntity["name"],
-              currentPageOrBlockEntity.originalName as PageEntity["originalName"],
-              currentPageOrBlockEntity.uuid as PageEntity["uuid"])
-        } else
-          if ((currentPageOrBlockEntity as BlockEntity).page) {
-            const pageEntity = await logseq.Editor.getPage((currentPageOrBlockEntity as BlockEntity).page.id) as { uuid: PageEntity["uuid"], originalName: PageEntity["originalName"], name: PageEntity["name"] } | null
-            if (pageEntity) {
-              // console.log("pageEntity is not null")
-              // console.log(pageEntity)
-              if (pageEntity.originalName
-                && pageEntity.originalName !== currentPageOriginalName)
-                updateCurrentPage(
-                  pageEntity.name,
-                  pageEntity.originalName,
-                  pageEntity.uuid)
-              currentBlockUuid = (currentPageOrBlockEntity as BlockEntity).uuid
+      if (pageUuid) {
+        const pageEntity = await logseq.Editor.getPage(pageUuid, { includeChildren: false }) as { uuid: PageEntity["uuid"], name: PageEntity["name"], originalName: PageEntity["originalName"] } | null
+        if (pageEntity) {
+          updateCurrentPage(
+            pageEntity.name,
+            pageEntity.originalName,
+            pageEntity.uuid)
+        }
+      } else {
+
+        const currentPageOrBlockEntity = await logseq.Editor.getCurrentPage() as PageEntity | BlockEntity | null
+        if (currentPageOrBlockEntity) {
+          // console.log("currentPageEntity is not null")
+          // console.log(currentPageOrBlockEntity)
+          if (currentPageOrBlockEntity.originalName) {
+            if (currentPageOrBlockEntity.originalName !== currentPageOriginalName)
+              updateCurrentPage(
+                currentPageOrBlockEntity.name as PageEntity["name"],
+                currentPageOrBlockEntity.originalName as PageEntity["originalName"],
+                currentPageOrBlockEntity.uuid as PageEntity["uuid"])
+          } else
+            if ((currentPageOrBlockEntity as BlockEntity).page) {
+              const pageEntity = await logseq.Editor.getPage((currentPageOrBlockEntity as BlockEntity).page.id, { includeChildren: false }) as { uuid: PageEntity["uuid"], originalName: PageEntity["originalName"], name: PageEntity["name"] } | null
+              if (pageEntity) {
+                // console.log("pageEntity is not null")
+                // console.log(pageEntity)
+                if (pageEntity.originalName
+                  && pageEntity.originalName !== currentPageOriginalName)
+                  updateCurrentPage(
+                    pageEntity.name,
+                    pageEntity.originalName,
+                    pageEntity.uuid)
+                currentBlockUuid = (currentPageOrBlockEntity as BlockEntity).uuid
+              }
             }
-          }
+        }
       }
 
       if (currentPageOriginalName === "") {
@@ -392,6 +403,7 @@ const displayHeadersList = async () => {
         // ヘッダー一覧を生成
         await generateHeaderList(popupMain)
       }
+
 
       // ページセレクトボックスを表示
       generateSelectForQuickAccess(currentPageOriginalName)
@@ -628,17 +640,9 @@ const generateSelectForQuickAccess = (removePageName?: string) => {
     select.addEventListener("change", async (ev) => {
       const pageName = (ev.target as HTMLSelectElement).value
       if (pageName === "") return
-      const pageEntity = await logseq.Editor.getPage(pageName) as { uuid: PageEntity["uuid"]; name: PageEntity["name"], originalName: PageEntity["originalName"] } | null
-      if (pageEntity) {
-        logseq.App.pushState('page', { name: pageEntity.name })
-        updateCurrentPage(
-          pageEntity.name,
-          pageEntity.originalName,
-          pageEntity.uuid)
-        setTimeout(() =>
-          displayHeadersList()
-          , 20)
-      }
+      const pageEntity = await logseq.Editor.getPage(pageName, { includeChildren: false }) as { uuid: PageEntity["uuid"]; name: PageEntity["name"], originalName: PageEntity["originalName"] } | null
+      if (pageEntity)
+        displayHeadersList(pageEntity.uuid)
     })
     selectPage.appendChild(select)
   }
@@ -719,13 +723,13 @@ const generatePageButton = () => {
           openButton.style.backgroundColor = "var(--ls-secondary-background-color)"
           openButton.addEventListener("click", async ({ shiftKey }) => {
             currentBlockUuid = "" //ブロックuuidをリセットする
-            const pageEntity = await logseq.Editor.getPage(thisButtonPageName, { includeChildren: false }) as { uuid: PageEntity["uuid"], name: PageEntity["name"] } | null
-            if (pageEntity) {
+            const pageEntity = await logseq.Editor.getPage(thisButtonPageName, { includeChildren: false }) as { uuid: PageEntity["uuid"], name: PageEntity["name"], originalName: PageEntity["originalName"] } | null
+            if (pageEntity)
               if (shiftKey === true)
                 logseq.Editor.openInRightSidebar(pageEntity.uuid)
               else
-                logseq.App.pushState('page', { name: pageEntity.name })
-            }
+                // 目次の更新だけおこなう
+                displayHeadersList(pageEntity.uuid)
           })
           headerSpace.appendChild(openButton)
         }
