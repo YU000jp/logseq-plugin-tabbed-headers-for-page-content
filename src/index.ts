@@ -1,10 +1,11 @@
 import '@logseq/libs' //https://plugins-doc.logseq.com/
-import { setup as l10nSetup, t } from "logseq-l10n" //https://github.com/sethyuan/logseq-l10n
-import { settingsTemplate } from "./settings"
 import { BlockEntity, PageEntity } from '@logseq/libs/dist/LSPlugin.user'
-import removeMd from "remove-markdown"
-import { removeListWords, removeMarkdownAliasLink, removeMarkdownImage, removeMarkdownLink, removeProperties, replaceOverCharacters } from './markdown'
+import { generateHierarchyList } from './hierarchy'
+import { clickRefreshButton, generatePageButton, generateSelectForQuickAccess, openPopupFromToolbar, removePopup, toggleHeaderVisibility } from './popup'
+import { settingsTemplate } from "./settings"
+import { generateHeaderList, noHeadersFound } from './toc'
 import cssToc from "./toc.css?inline"
+import { pageEntityShort } from './type'
 // import af from "./translations/af.json"
 // import de from "./translations/de.json"
 // import es from "./translations/es.json"
@@ -24,41 +25,38 @@ import cssToc from "./toc.css?inline"
 // import uk from "./translations/uk.json"
 // import zhCN from "./translations/zh-CN.json"
 // import zhHant from "./translations/zh-Hant.json"
-const pluginName = "Table of contents with sub-pages"
+export const pluginName = "Table of contents with sub-pages"
 const keyToolbar = "twsToolbar"
-const icon = "🪧"
-const keyToolbarPopup = "twsToolbarPopup"
-const keyToolbarSelectPage = "twsToolbarSelectPage"
-const keyToolbarHeaderSpace = "twsToolbarHeaderSpace"
-const keyToggleTableId = "tws--toggleHeader"
-const keySettingsButton = "twsSettingsButton"
+export const icon = "🪧"
+export const keyToolbarPopup = "twsToolbarPopup"
+export const keyToolbarSelectPage = "twsToolbarSelectPage"
+export const keyToolbarHeaderSpace = "twsToolbarHeaderSpace"
+export const keyToggleTableId = "tws--toggleHeader"
+export const keySettingsButton = "twsSettingsButton"
 const twsToggle = "twsToggle"
-const keyToggleH1 = `${twsToggle}H1`
-const keyToggleH2 = `${twsToggle}H2`
-const keyToggleH3 = `${twsToggle}H3`
-const keyToggleH4 = `${twsToggle}H4`
-const keyToggleH5 = `${twsToggle}H5`
-const keyToggleH6 = `${twsToggle}H6`
-const keyToolbarHierarchy = "twsToolbarHierarchy"
-const keyToolbarContent = "twsToolbarContent"
-const keyRefreshButton = "twsRefreshButton"
-const keyToggleStyleForHideBlock = "twsToggleStyleForHideBlock"
+export const keyToggleH1 = `${twsToggle}H1`
+export const keyToggleH2 = `${twsToggle}H2`
+export const keyToggleH3 = `${twsToggle}H3`
+export const keyToggleH4 = `${twsToggle}H4`
+export const keyToggleH5 = `${twsToggle}H5`
+export const keyToggleH6 = `${twsToggle}H6`
+export const keyToolbarHierarchy = "twsToolbarHierarchy"
+export const keyToolbarContent = "twsToolbarContent"
+export const keyRefreshButton = "twsRefreshButton"
+export const keyToggleStyleForHideBlock = "twsToggleStyleForHideBlock"
 
 //現在のページ名とuuidの保持
-let currentPageOriginalName: PageEntity["originalName"] = ""
-let currentPageName: PageEntity["name"] = ""
-let currentPageUuid: PageEntity["uuid"] = ""
-let currentBlockUuid: BlockEntity["uuid"] = ""
-let currentPageHierarchy: string[] = []
+export let currentPageOriginalName: PageEntity["originalName"] = ""
+export let currentPageName: PageEntity["name"] = ""
+export let currentPageUuid: PageEntity["uuid"] = ""
+export let currentBlockUuid: BlockEntity["uuid"] = ""
 
-
-interface pageEntityShort {
-  uuid: PageEntity["uuid"]
-  name: PageEntity["name"]
-  originalName: PageEntity["originalName"]
+export const updateBlockUuid = (uuid: BlockEntity["uuid"]) => {
+  currentBlockUuid = uuid
 }
 
-const updateCurrentPage = async (pageName: string, pageOriginalName: string, pageUuid: PageEntity["uuid"]) => {
+
+export const updateCurrentPage = async (pageName: string, pageOriginalName: string, pageUuid: PageEntity["uuid"]) => {
   currentPageOriginalName = pageOriginalName
   currentPageName = pageName
   currentPageUuid = pageUuid
@@ -135,10 +133,7 @@ const main = async () => {
   logseq.useSettingsSchema(settingsTemplate())
 
   //CSS
-  logseq.provideStyle(`
-
-  ${cssToc}
-  `)
+  logseq.provideStyle(cssToc)
 
 
   //ツールバーにポップアップ画面を開くボタンを追加
@@ -148,57 +143,18 @@ const main = async () => {
   })
 
 
-
-  let flagToggleStyleForHideBlock: boolean = false
-
   //クリックイベント
   logseq.provideModel({
-
-    //ツールバーのボタンをクリックしたら、ポップアップを表示
-    [keyToolbar]: () => openPopupFromToolbar(),
-
-    //リフレッシュボタンを押したらポップアップの本文をリフレッシュ
-    [keyRefreshButton]: () => displayHeadersList(),
-
-    //設定ボタンを押したら設定画面を表示
-    [keySettingsButton]: () => logseq.showSettingsUI(),
-
-    [keyToggleStyleForHideBlock]: () => { // サブブロックを非表示にするスタイルをトグル
-      if (flagToggleStyleForHideBlock) return
-      flagToggleStyleForHideBlock = true
-
-      let state = false
-
-      //body.classに「tws--hide-block」がある場合は削除する
-      if (parent.document.body.classList.contains(keyToggleStyleForHideBlock))
-        parent.document.body.classList.remove(keyToggleStyleForHideBlock)
-      else {
-        parent.document.body.classList.add(keyToggleStyleForHideBlock)
-        state = true //非表示の状態であることを示す
-      }
-      setTimeout(() => {
-        flagToggleStyleForHideBlock = false
-        //#keyToggleStyleForHideBlockのトグルをマッチさせる
-        const button = parent.document.getElementById(keyToggleStyleForHideBlock) as HTMLInputElement | null
-        if (button)
-          button.checked = state
-        logseq.updateSettings({ hideBlockChildren: state })
-      }, 300)
-    },
-
-    //h1の表示・非表示
-    [keyToggleH1]: () => hideHeaderFromList("H1"),
-    //h2の表示・非表示
-    [keyToggleH2]: () => hideHeaderFromList("H2"),
-    //h3の表示・非表示
-    [keyToggleH3]: () => hideHeaderFromList("H3"),
-    //h4の表示・非表示
-    [keyToggleH4]: () => hideHeaderFromList("H4"),
-    //h5の表示・非表示
-    [keyToggleH5]: () => hideHeaderFromList("H5"),
-    //h6の表示・非表示
-    [keyToggleH6]: () => hideHeaderFromList("H6"),
-
+    [keyToolbar]: () => openPopupFromToolbar(),//ツールバーのボタンをクリックしたら、ポップアップを表示
+    [keyRefreshButton]: () => displayHeadersList(),//リフレッシュボタンを押したらポップアップの本文をリフレッシュ
+    [keySettingsButton]: () => logseq.showSettingsUI(),//設定ボタンを押したら設定画面を表示
+    [keyToggleStyleForHideBlock]: () => toggleStyleForHideBlock(),// サブブロックを非表示にするスタイルをトグル
+    [keyToggleH1]: () => hideHeaderFromList("H1"),//h1の表示・非表示
+    [keyToggleH2]: () => hideHeaderFromList("H2"),//h2の表示・非表示
+    [keyToggleH3]: () => hideHeaderFromList("H3"),//h3の表示・非表示
+    [keyToggleH4]: () => hideHeaderFromList("H4"),//h4の表示・非表示
+    [keyToggleH5]: () => hideHeaderFromList("H5"),//h5の表示・非表示
+    [keyToggleH6]: () => hideHeaderFromList("H6"),//h6の表示・非表示
   })
 
 
@@ -230,6 +186,32 @@ const main = async () => {
 
 
 
+let flagToggleStyleForHideBlock: boolean = false
+
+const toggleStyleForHideBlock = () => {
+  if (flagToggleStyleForHideBlock) return
+  flagToggleStyleForHideBlock = true
+
+  let state = false
+
+  //body.classに「tws--hide-block」がある場合は削除する
+  if (parent.document.body.classList.contains(keyToggleStyleForHideBlock))
+    parent.document.body.classList.remove(keyToggleStyleForHideBlock)
+  else {
+    parent.document.body.classList.add(keyToggleStyleForHideBlock)
+    state = true //非表示の状態であることを示す
+  }
+  setTimeout(() => {
+    flagToggleStyleForHideBlock = false
+    //#keyToggleStyleForHideBlockのトグルをマッチさせる
+    const button = parent.document.getElementById(keyToggleStyleForHideBlock) as HTMLInputElement | null
+    if (button)
+      button.checked = state
+    logseq.updateSettings({ hideBlockChildren: state })
+  }, 300)
+}
+
+
 let processingRouteCheck = false
 const routeCheck = () => {
   if (processingRouteCheck) return
@@ -252,77 +234,11 @@ const hideHeaderFromList = (headerName: string) => {
 }
 
 
-const removePopup = () => {
-  parent.document.getElementById(logseq.baseInfo.id + "--" + keyToolbarPopup)?.remove()
-}
-
-
-const openPopupFromToolbar = () => {
-
-  //ポップアップを表示
-  logseq.provideUI({
-    attrs: {
-      title: `${icon}${pluginName} ${t("Plugin")}`,
-    },
-    key: keyToolbarPopup,
-    reset: true,
-    style: {
-      width: "380px",
-      height: "93vh",
-      overflowY: "auto",
-      left: "unset",
-      bottom: "unset",
-      right: "1em",
-      top: "4em",
-      paddingLeft: "0.2em",
-      paddingTop: "0.2em",
-      backgroundColor: 'var(--ls-primary-background-color)',
-      color: 'var(--ls-primary-text-color)',
-      boxShadow: '1px 2px 5px var(--ls-secondary-background-color)',
-    },
-    template: `
-        <div title="">
-        <div id="${keyToolbarSelectPage}"></div>
-        
-        <table id="${keyToggleTableId}">
-        <tr>
-        <th title="${t("Toggle for hide")}">h1<input type="checkbox" id="${keyToggleH1}" data-on-click="${keyToggleH1}"${logseq.settings!.hideH1 ? `checked="true"` : ""}/></th>
-        <th title="${t("Toggle for hide")}">h2<input type="checkbox" id="${keyToggleH2}" data-on-click="${keyToggleH2}" ${logseq.settings!.hideH2 ? `checked="true"` : ""}/></th>
-        <th title="${t("Toggle for hide")}">h3<input type="checkbox" id="${keyToggleH3}" data-on-click="${keyToggleH3}" ${logseq.settings!.hideH3 ? `checked="true"` : ""}/></th>
-        <th title="${t("Toggle for hide")}">h4<input type="checkbox" id="${keyToggleH4}" data-on-click="${keyToggleH4}" ${logseq.settings!.hideH4 ? `checked="true"` : ""}/></th>
-        <th title="${t("Toggle for hide")}">h5<input type="checkbox" id="${keyToggleH5}" data-on-click="${keyToggleH5}" ${logseq.settings!.hideH5 ? `checked="true"` : ""}/></th>
-        <th title="${t("Toggle for hide")}">h6<input type="checkbox" id="${keyToggleH6}" data-on-click="${keyToggleH6}" ${logseq.settings!.hideH6 ? `checked="true"` : ""}/></th>
-        <th title="${t("Toggle for hide")}\n${t("Black out header sub-blocks when the page is open.")}"> 👀<input type="checkbox" id="${keyToggleStyleForHideBlock}" data-on-click="${keyToggleStyleForHideBlock}" ${logseq.settings!.hideBlockChildren ? `checked="true"` : ""}/></th>
-        <th title="${t("Refresh")}"><button id="${keyRefreshButton}" data-on-click="${keyRefreshButton}">🔄</button></th>
-        <th title="${t("Plugin Settings")}"><button data-on-click="${keySettingsButton}">⚙️</button></th>
-        </tr>
-        </table>
-
-        <hr/>
-        <p id="${keyToolbarHeaderSpace}"></p>
-        <div id="${keyToolbarHierarchy}"></div>
-        <div id="${keyToolbarContent}"></div>
-        </div>
-        <style>
-          /* h1,h2,h3,h4,h5,h6を持つブロックの子要素を非表示にする ブロックズームを除く */
-          body.${keyToggleStyleForHideBlock} div.page:has(.page-title) div[haschild="true"].ls-block:has(h1,h2,h3,h4,h5,h6)>div.block-children-container:not(:focus-within) {
-              opacity: 0.2;
-              max-height: 200px;
-              overflow-y: auto;
-          } 
-        </style>
-        `,
-  })
-  setTimeout(() => {
-    displayHeadersList()//ポップアップの本文を作成・リフレッシュ
-  }, 50)
-}
-
 //処理中フラグ
 let processing = false
 
 //ポップアップの本文を作成・リフレッシュ
-const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
+export const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
   if (processing) return
   processing = true
   setTimeout(async () => {
@@ -385,458 +301,16 @@ const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
           , 2000)
         return
       } else {
-
-        // ページ名を表示
-        generatePageButton()
-
-        // ヘッダー一覧を生成
-        await generateHeaderList(popupMain)
-
-        // 階層構造を表示
-        generateHierarchyList()
+        generatePageButton()// ページ名を表示
+        await generateHeaderList(popupMain)// ヘッダー一覧を生成
+        generateHierarchyList()// 階層構造を表示
       }
-
       // ページセレクトボックスを表示
       generateSelectForQuickAccess(currentPageOriginalName)
-
-
     }
     //end if popupMain
 
-
-
   }, 10)
-
-}
-
-
-const getHeaderLevel = (header: string): number => {
-  // 「# 」や「## 」「### 」「#### 」「##### 」「###### 」のいずれかで始まる
-  const match = header.match(/^(#{1,6})\s/) as RegExpMatchArray | null
-  if (match)
-    return match[1].length
-  else
-    return 0
-}
-
-
-const noHeadersFound = (popupMain: HTMLElement) => {
-  popupMain.appendChild(document.createElement("p")).textContent = t("No headers found.")
-}
-
-
-type blockContentWithChildren = {
-  content: BlockEntity["content"]
-  uuid: BlockEntity["uuid"]
-  properties: BlockEntity["properties"]
-  children: BlockEntity["children"]
-}
-
-type HeaderEntity = {
-  content: BlockEntity["content"]
-  uuid: BlockEntity["uuid"]
-  properties: BlockEntity["properties"]
-  children: BlockEntity["children"]
-  headerLevel: string // h1, h2, h3, h4, h5, h6
-}
-
-
-const generateHeaderList = async (popupMain: HTMLElement) => {
-  const blocksArray = await logseq.Editor.getPageBlocksTree(currentPageUuid) as blockContentWithChildren[]
-  if (blocksArray) {
-    //console.log(headerListArray)
-    // 「# 」や「## 」「### 」「#### 」「##### 」「###### 」のいずれかで始まるヘッダーをもつcontentのみを抽出する
-    const filteredHeaders = blocksArray
-      .filter(isValidHeader)
-      .map((block) => ({
-        content: block.content,
-        uuid: block.uuid,
-        properties: block.properties,
-        children: block.children,
-        headerLevel: `h${getHeaderLevel(block.content)}`
-      })) as HeaderEntity[] || []
-    //console.log(filteredHeaders)
-
-    if (filteredHeaders
-      && filteredHeaders.length > 0) // ページコンテンツにヘッダーがある場合
-      createHeaderList(filteredHeaders, blocksArray, popupMain)
-    else
-      noHeadersFound(popupMain)
-  } else
-    noHeadersFound(popupMain)
-}
-
-
-
-
-const isValidHeader = (child: blockContentWithChildren): boolean => {
-  const headerLevel = getHeaderLevel(child.content.split("\n")[0] || child.content)
-  return headerLevel > 0 && headerLevel < 7
-}
-
-
-const createHeaderList = async (
-  filteredHeaders: HeaderEntity[],
-  headerListArray: { content: BlockEntity["content"]; uuid: BlockEntity["uuid"] }[],
-  popupMain: HTMLElement
-) => {
-  const divContainer = document.createElement("div")
-
-  for (const header of filteredHeaders) {
-    const innerDiv = document.createElement("div")
-
-    const headerCell = document.createElement(header.headerLevel) as HTMLElement
-    if ((header.headerLevel === "h1" && logseq.settings!.hideH1 as boolean === true)
-      || (header.headerLevel === "h2" && logseq.settings!.hideH2 as boolean === true)
-      || (header.headerLevel === "h3" && logseq.settings!.hideH3 as boolean === true)
-      || (header.headerLevel === "h4" && logseq.settings!.hideH4 as boolean === true)
-      || (header.headerLevel === "h5" && logseq.settings!.hideH5 as boolean === true)
-      || (header.headerLevel === "h6" && logseq.settings!.hideH6 as boolean === true))
-      headerCell.style.display = "none"
-    const content = await generateContent(header.content, header.properties)
-    headerCell.textContent = removeMd(
-      `${(content.includes("collapsed:: true")
-        && content.substring(2, content.length - 16)) ||
-        content.substring(2)}`.trim()
-    )
-    //headerCell.dataset.blockid = header.uuid
-    if (currentBlockUuid !== ""
-      && currentBlockUuid === header.uuid) {
-      innerDiv.style.backgroundColor = "var(--ls-secondary-background-color)" // ブロックズームで開いていて一致する場合は、背景色を変更
-      // 🔎マークをつける
-      const zoomIcon = document.createElement("span")
-      zoomIcon.textContent = "🔎"
-      zoomIcon.style.marginLeft = "0.2em"
-      headerCell.appendChild(zoomIcon)
-    }
-    headerCell.addEventListener("click", openPageForHeaderAsZoom(header.uuid, header.content))
-    // マウスオーバーで一致するuuidブロックの・に丸を付ける
-    let mouseOverFlag = false
-    headerCell.addEventListener("mouseover", () => {
-      if (mouseOverFlag) return
-      mouseOverFlag = true
-      // 丸を付ける
-      const block = parent.document.getElementById("dot-" + header.uuid) as HTMLElement | null
-      if (block)
-        block.style.border = "3px double var(--lx-gray-09,var(--ls-border-color,var(--rx-gray-09)))"
-      // ブロック全体に背景色をつける
-      const blockElement = parent.document.querySelector(`div.ls-block[blockid="${header.uuid}"]`) as HTMLElement | null
-      if (blockElement)
-        blockElement.style.backgroundColor = "var(--ls-block-highlight-color,var(--rx-gray-04))"
-    })
-    headerCell.addEventListener("mouseout", () => {
-      if (!mouseOverFlag) return
-      mouseOverFlag = false
-      const block = parent.document.getElementById("dot-" + header.uuid) as HTMLElement | null
-      if (block)
-        block.style.border = "unset"
-      const blockElement = parent.document.querySelector(`div.ls-block[blockid="${header.uuid}"]`) as HTMLElement | null
-      if (blockElement)
-        blockElement.style.backgroundColor = "unset"
-    })
-    headerCell.className = "cursor"
-    headerCell.title = header.headerLevel
-
-    if (header.children
-      && header.children.length > 0) {
-      const children = (header.children as blockContentWithChildren[])
-        .filter(isValidHeader)
-        .map((child) => ({
-          content: child.content,
-          uuid: child.uuid, // ブロックのuuid TODO: オプション追加予定
-          properties: child.properties,
-          children: child.children,
-          headerLevel: `h${getHeaderLevel(child.content)}`
-        })) as HeaderEntity[] || []
-      if (children.length > 0)
-        createHeaderList(children, headerListArray, innerDiv)
-    }
-    innerDiv.appendChild(headerCell)
-    divContainer.appendChild(innerDiv)
-  }
-
-  popupMain.appendChild(divContainer)
-}
-
-
-const generateContent = async (
-  content: string,
-  properties: BlockEntity["properties"]
-): Promise<string> => {
-
-  if (content.includes("((")
-    && content.includes("))")) {
-    // Get content if it's q block reference
-    const blockIdArray = /\(([^(())]+)\)/.exec(content)
-    if (blockIdArray)
-      for (const blockId of blockIdArray) {
-        const block = await logseq.Editor.getBlock(blockId, { includeChildren: false, }) as { content: BlockEntity["content"] } | null
-        if (block)
-          content = content.replace(`((${blockId}))`, block.content.substring(0, block.content.indexOf("id::")))
-      }
-  }
-  //プロパティを取り除く
-  content = await removeProperties(properties, content)
-
-  //「id:: ：」以降の文字列を削除する
-  if (content.includes("id:: "))
-    content = content.substring(0, content.indexOf("id:: "))
-
-  //文字列のどこかで「[[」と「]]」で囲まれているもいのがある場合は、[[と]]を削除する
-  content = removeMarkdownLink(content)
-
-  //文字列のどこかで[]()形式のリンクがある場合は、[と]を削除する
-  content = removeMarkdownAliasLink(content)
-
-  //文字数が200文字を超える場合は、200文字以降を「...」に置き換える
-  content = replaceOverCharacters(content)
-
-  //マークダウンの画像記法を全体削除する
-  content = removeMarkdownImage(content)
-
-  //リストにマッチする文字列を正規表現で取り除く
-  content = removeListWords(content, logseq.settings!.tocRemoveWordList as string)
-
-  return content
-}
-
-
-const toggleHeaderVisibility = (headerName: string) => {
-  for (const element of (parent.document.querySelectorAll(`#${keyToolbarContent} ${headerName}`) as NodeListOf<HTMLElement>))
-    element.style.display = element.style.display === "none" ?
-      "block"
-      : "none"
-}
-
-const generateSelectForQuickAccess = (removePageName?: string) => {
-  const selectPage = parent.document.getElementById(keyToolbarSelectPage) as HTMLElement | null
-  if (selectPage) {
-    selectPage.innerHTML = ""
-    const select = document.createElement("select")
-    // logseq.settings!.historyにあるページ名をセレクトボックスに追加
-    const history = logseq.settings!.history as string[] || []
-    // 先頭の空白オプション
-    const option = document.createElement("option")
-    option.value = ""
-    // ページ選択の初期値 クイックアクセス
-    option.textContent = t("Quick access")
-    select.appendChild(option)
-    for (const pageName of history) {
-      if (removePageName
-        && pageName === removePageName) continue // 現在のページ名は除外
-      const option = document.createElement("option")
-      option.value = pageName
-      option.textContent = pageName
-      select.appendChild(option)
-    }
-    select.addEventListener("change", async (ev) => {
-      const pageName = (ev.target as HTMLSelectElement).value
-      if (pageName === "") return
-      const pageEntity = await logseq.Editor.getPage(pageName, { includeChildren: false }) as { uuid: PageEntity["uuid"] } | null
-      if (pageEntity)
-        displayHeadersList(pageEntity.uuid)
-    })
-    selectPage.appendChild(select)
-  }
-}
-
-
-const clickRefreshButton = () => {
-  const refreshButton = parent.document.getElementById(keyRefreshButton) as HTMLElement | null
-  if (refreshButton)
-    refreshButton.click()
-}
-
-
-export function openPageForHeaderAsZoom(uuid: BlockEntity["uuid"], content: BlockEntity["content"]): (ev: MouseEvent) => any {
-  return async ({ shiftKey, ctrlKey }) => {
-    if (shiftKey === true) {
-      logseq.UI.showMsg("🔎 " + t("Opening in the right sidebar..."), "info", { timeout: 2200 })
-      logseq.Editor.openInRightSidebar(uuid)
-    } else
-      if (ctrlKey === true) {
-        //TODO: 選択されたブロックを、サブページに移動させる
-        const msg = await logseq.UI.showMsg("🔎 " + t("Moving the selected block to a sub-page..."), "info", { timeout: 4000 })
-        const newPageName = `${currentPageOriginalName}/${content}`
-        // ここにconfirm実装
-
-        //作成する場合
-        const newSubPageEntity = await logseq.Editor.createPage(newPageName, currentPageUuid, { redirect: false, createFirstBlock: false }) as pageEntityShort | null
-        if (newSubPageEntity) {
-          logseq.Editor.moveBlock(uuid, newSubPageEntity.uuid)
-          logseq.UI.closeMsg(msg)
-          logseq.UI.showMsg("🔎 " + t("The selected block has been moved to a sub-page."), "success", { timeout: 4000 })
-          setTimeout(() => {
-            logseq.App.pushState('page', { name: newSubPageEntity.name })
-            updateCurrentPage(
-              newSubPageEntity.name,
-              newSubPageEntity.originalName,
-              newSubPageEntity.uuid,
-            )
-            displayHeadersList()
-          }, 1000)
-        }
-
-      } else {
-        logseq.UI.showMsg("🔎 " + t("Zooming in on the block..."), "info", { timeout: 1000 })
-        logseq.App.pushState('page', { name: uuid }) // ズームページを開く
-      }
-    logseq.Editor.setBlockCollapsed(uuid, false)
-  }
-}
-
-
-
-const generatePageButton = () => {
-  // 時間差処理
-
-  setTimeout(() => {
-    const headerSpace = parent.document.getElementById(keyToolbarHeaderSpace) as HTMLElement | null
-    if (headerSpace) {
-      headerSpace.innerHTML = ""//リフレッシュ
-
-      //currentPageOriginalNameに 「/」が含まれている場合は、分割する
-      if (currentPageName.includes("/")) {
-        //「Logseq/プラグイン/A」のような場合は、「Logseq」「プラグイン」「A」 それぞれにリンクを持たせる。ただし、リンクは「Logseq/プラグイン」のように親の階層を含める必要がある
-        const pageNames = currentPageOriginalName.split("/")
-        let parentPageName = ""
-        for (const pageName of pageNames) {
-          // ページを開くボタン
-          const openButton = document.createElement("button")
-          openButton.textContent = parentPageName === "" ?
-            pageName
-            : "/" + pageName
-          parentPageName += parentPageName === "" ?
-            pageName
-            : `/${pageName}`
-          const thisButtonPageName = parentPageName
-          openButton.title = thisButtonPageName
-          openButton.className = "button"
-          openButton.style.whiteSpace = "nowrap"
-          openButton.style.backgroundColor = "var(--ls-secondary-background-color)"
-          openButton.addEventListener("click", async ({ shiftKey }) => {
-            currentBlockUuid = "" //ブロックuuidをリセットする
-            const pageEntity = await logseq.Editor.getPage(thisButtonPageName, { includeChildren: false }) as { uuid: PageEntity["uuid"] } | null
-            if (pageEntity)
-              if (shiftKey === true)
-                logseq.Editor.openInRightSidebar(pageEntity.uuid)
-              else
-                // 目次の更新だけおこなう
-                displayHeadersList(pageEntity.uuid)
-          })
-          headerSpace.appendChild(openButton)
-        }
-        headerSpace.classList.add("flex")
-        headerSpace.style.flexWrap = "nowrap"
-        if (currentBlockUuid !== "") // ブロックズームで開いている場合は、戻るボタンを追加
-          headerSpace.appendChild(createOpenButton(" 🔙 🔎",
-            //ズーム・ブロックを解除する
-            t("This zoom block will be lifted."),))
-      } else
-        if (currentBlockUuid !== "")
-          headerSpace.appendChild(createOpenButton(currentPageOriginalName + " 🔙 🔎",
-            t("This zoom block will be lifted.")))
-    }
-  }, 10)
-
-}
-
-const generateHierarchyList = () => {
-
-  if (logseq.settings!.tocShowSubPage as boolean === true)
-    setTimeout(() => {
-      //階層構造を表示
-      const hierarchy = parent.document.getElementById(keyToolbarHierarchy) as HTMLElement | null
-      if (hierarchy) {
-        hierarchy.innerHTML = ""//リフレッシュ
-        createHierarchyList(hierarchy)
-      }
-    }, 10)
-}
-
-type queryItemShort = Array<{
-  "original-name": string
-  uuid: string
-}>
-
-
-const createHierarchyList = async (hierarchyElement: HTMLElement) => {
-  if (currentPageName === "") return
-
-  const getArrayFromQuery = await getPageHierarchyFromQuery(currentPageName) as queryItemShort
-  if (getArrayFromQuery.length === 0) return
-
-  console.log(getArrayFromQuery)
-
-  // リストに反映
-  for (const item of getArrayFromQuery) {
-    const openButton = document.createElement("button")
-    openButton.textContent = item["original-name"]
-    openButton.title = item["original-name"]
-    openButton.className = "button"
-    openButton.style.whiteSpace = "nowrap"
-    openButton.addEventListener("click", async ({ shiftKey }) => {
-      currentBlockUuid = "" //ブロックuuidをリセットする
-      if (shiftKey === true)
-        logseq.Editor.openInRightSidebar(item.uuid)
-      else
-        // 目次の更新だけおこなう
-        displayHeadersList(item.uuid)
-    })
-    hierarchyElement.appendChild(openButton)
-  }
-}
-
-const getPageHierarchyFromQuery = async (pageName: string): Promise<queryItemShort> => {
-  const queryPageName = pageName.toLowerCase() // クエリーでは、ページ名を小文字にする必要がある
-  //同じ名前をもつページ名を取得するクエリー
-  const query = `
-      [:find (pull ?p [:block/original-name,:block/uuid])
-              :in $ ?pattern
-              :where
-              [?p :block/name ?c]
-              [(re-pattern ?pattern) ?q]
-              [(re-find ?q ?c)]
-      ]
-      `
-  let result = (await logseq.DB.datascriptQuery(query, `"${queryPageName}"`) as any | null)?.flat() as {
-    "original-name": string,
-    "uuid": string,
-  }[] | null
-  if (!result) {
-    logseq.UI.showMsg("Cannot get the page name", "error")
-    return []
-  }
-
-  //resultの中に、nullが含まれている場合があるので、nullを除外する
-  result = result.filter((item) => item !== null && item['original-name'] !== currentPageOriginalName)
-
-
-  if (result.length === 0) return []
-
-
-  // ページ名を、名称順に並び替える
-  result = result.sort((a, b) => {
-    return a["original-name"] > b["original-name"] ? 1 : -1
-  })
-  return result
-}
-
-
-const createOpenButton = (buttonText: string, title: string) => {
-  const openButton = document.createElement("button")
-  openButton.title = title
-  openButton.textContent = buttonText
-  openButton.className = "button"
-  openButton.style.whiteSpace = "nowrap"
-  openButton.addEventListener("click", ({ shiftKey }) => {
-    currentBlockUuid = "" //ブロックuuidをリセットする
-    if (shiftKey === true)
-      logseq.Editor.openInRightSidebar(currentPageUuid)
-    else
-      logseq.App.pushState('page', { name: currentPageOriginalName })
-  })
-  return openButton
 }
 
 
