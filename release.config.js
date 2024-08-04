@@ -1,5 +1,5 @@
 
-var PLUGIN_NAME = 'logseq-plugin-tabbed-headers-for-page-content';
+var PLUGIN_NAME = 'logseq-plugin-toc-with-sub-pages';
 
 module.exports = {
     branches: ['main'],
