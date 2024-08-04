@@ -49,10 +49,17 @@ let currentPageOriginalName: PageEntity["originalName"] = ""
 let currentPageName: PageEntity["name"] = ""
 let currentPageUuid: PageEntity["uuid"] = ""
 let currentBlockUuid: BlockEntity["uuid"] = ""
+let currentPageHierarchy: string[] = []
 
 
-const updateCurrentPage = async (pageName: string, originalName: string, pageUuid: PageEntity["uuid"]) => {
-  currentPageOriginalName = originalName
+interface pageEntityShort {
+  uuid: PageEntity["uuid"]
+  name: PageEntity["name"]
+  originalName: PageEntity["originalName"]
+}
+
+const updateCurrentPage = async (pageName: string, pageOriginalName: string, pageUuid: PageEntity["uuid"]) => {
+  currentPageOriginalName = pageOriginalName
   currentPageName = pageName
   currentPageUuid = pageUuid
   currentBlockUuid = "" //ページが変わったら、ブロックのuuidをリセットする
@@ -60,12 +67,12 @@ const updateCurrentPage = async (pageName: string, originalName: string, pageUui
   // logseq.settings!.historyに、配列をつくって、ページ名を履歴にいれる (重複させない)
   const history = logseq.settings!.history as string[] || []
   if (history.length === 0) {
-    history.push(originalName)
+    history.push(pageOriginalName)
     logseq.updateSettings({ history })
   } else {
-    if (!history.includes(originalName)) {
+    if (!history.includes(pageOriginalName)) {
       //お気に入りと重複させないようにするオプションは不要かも。
-      history.unshift(originalName)
+      history.unshift(pageOriginalName)
       logseq.updateSettings({ history: history.slice(0, 16) })
     }
   }
@@ -311,8 +318,6 @@ const openPopupFromToolbar = () => {
   }, 50)
 }
 
-
-
 //処理中フラグ
 let processing = false
 
@@ -329,12 +334,14 @@ const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
       popupMain.innerHTML = ""//リフレッシュ
 
       if (pageUuid) {
-        const pageEntity = await logseq.Editor.getPage(pageUuid, { includeChildren: false }) as { uuid: PageEntity["uuid"], name: PageEntity["name"], originalName: PageEntity["originalName"] } | null
+
+        const pageEntity = await logseq.Editor.getPage(pageUuid, { includeChildren: false }) as pageEntityShort | null
         if (pageEntity) {
           updateCurrentPage(
             pageEntity.name,
             pageEntity.originalName,
-            pageEntity.uuid)
+            pageEntity.uuid,
+          )
         }
       } else {
 
@@ -347,10 +354,11 @@ const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
               updateCurrentPage(
                 currentPageOrBlockEntity.name as PageEntity["name"],
                 currentPageOrBlockEntity.originalName as PageEntity["originalName"],
-                currentPageOrBlockEntity.uuid as PageEntity["uuid"])
+                currentPageOrBlockEntity.uuid as PageEntity["uuid"],
+              )
           } else
             if ((currentPageOrBlockEntity as BlockEntity).page) {
-              const pageEntity = await logseq.Editor.getPage((currentPageOrBlockEntity as BlockEntity).page.id, { includeChildren: false }) as { uuid: PageEntity["uuid"], originalName: PageEntity["originalName"], name: PageEntity["name"] } | null
+              const pageEntity = await logseq.Editor.getPage((currentPageOrBlockEntity as BlockEntity).page.id, { includeChildren: false }) as pageEntityShort | null
               if (pageEntity) {
                 // console.log("pageEntity is not null")
                 // console.log(pageEntity)
@@ -359,7 +367,8 @@ const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
                   updateCurrentPage(
                     pageEntity.name,
                     pageEntity.originalName,
-                    pageEntity.uuid)
+                    pageEntity.uuid,
+                  )
                 currentBlockUuid = (currentPageOrBlockEntity as BlockEntity).uuid
               }
             }
@@ -367,7 +376,9 @@ const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
       }
 
       if (currentPageOriginalName === "") {
-        // ズームページでもない場合
+        // ページでもなく、ズームページでもない場合 または、ページ名が取得できない場合
+
+        // メッセージを表示して、ポップアップを閉じる
         noHeadersFound(popupMain)
         setTimeout(() =>
           removePopup()
@@ -380,16 +391,19 @@ const displayHeadersList = async (pageUuid?: PageEntity["uuid"]) => {
 
         // ヘッダー一覧を生成
         await generateHeaderList(popupMain)
-      }
 
+        // 階層構造を表示
+        generateHierarchyList()
+      }
 
       // ページセレクトボックスを表示
       generateSelectForQuickAccess(currentPageOriginalName)
 
-    } else
-      // ページセレクトボックスを表示
-      generateSelectForQuickAccess()
+
+    }
     //end if popupMain
+
+
 
   }, 10)
 
@@ -618,7 +632,7 @@ const generateSelectForQuickAccess = (removePageName?: string) => {
     select.addEventListener("change", async (ev) => {
       const pageName = (ev.target as HTMLSelectElement).value
       if (pageName === "") return
-      const pageEntity = await logseq.Editor.getPage(pageName, { includeChildren: false }) as { uuid: PageEntity["uuid"]; name: PageEntity["name"], originalName: PageEntity["originalName"] } | null
+      const pageEntity = await logseq.Editor.getPage(pageName, { includeChildren: false }) as { uuid: PageEntity["uuid"] } | null
       if (pageEntity)
         displayHeadersList(pageEntity.uuid)
     })
@@ -647,7 +661,7 @@ export function openPageForHeaderAsZoom(uuid: BlockEntity["uuid"], content: Bloc
         // ここにconfirm実装
 
         //作成する場合
-        const newSubPageEntity = await logseq.Editor.createPage(newPageName, currentPageUuid, { redirect: false, createFirstBlock: false })
+        const newSubPageEntity = await logseq.Editor.createPage(newPageName, currentPageUuid, { redirect: false, createFirstBlock: false }) as pageEntityShort | null
         if (newSubPageEntity) {
           logseq.Editor.moveBlock(uuid, newSubPageEntity.uuid)
           logseq.UI.closeMsg(msg)
@@ -657,7 +671,8 @@ export function openPageForHeaderAsZoom(uuid: BlockEntity["uuid"], content: Bloc
             updateCurrentPage(
               newSubPageEntity.name,
               newSubPageEntity.originalName,
-              newSubPageEntity.uuid)
+              newSubPageEntity.uuid,
+            )
             displayHeadersList()
           }, 1000)
         }
@@ -681,7 +696,7 @@ const generatePageButton = () => {
       headerSpace.innerHTML = ""//リフレッシュ
 
       //currentPageOriginalNameに 「/」が含まれている場合は、分割する
-      if (currentPageOriginalName.includes("/")) {
+      if (currentPageName.includes("/")) {
         //「Logseq/プラグイン/A」のような場合は、「Logseq」「プラグイン」「A」 それぞれにリンクを持たせる。ただし、リンクは「Logseq/プラグイン」のように親の階層を含める必要がある
         const pageNames = currentPageOriginalName.split("/")
         let parentPageName = ""
@@ -701,7 +716,7 @@ const generatePageButton = () => {
           openButton.style.backgroundColor = "var(--ls-secondary-background-color)"
           openButton.addEventListener("click", async ({ shiftKey }) => {
             currentBlockUuid = "" //ブロックuuidをリセットする
-            const pageEntity = await logseq.Editor.getPage(thisButtonPageName, { includeChildren: false }) as { uuid: PageEntity["uuid"], name: PageEntity["name"], originalName: PageEntity["originalName"] } | null
+            const pageEntity = await logseq.Editor.getPage(thisButtonPageName, { includeChildren: false }) as { uuid: PageEntity["uuid"] } | null
             if (pageEntity)
               if (shiftKey === true)
                 logseq.Editor.openInRightSidebar(pageEntity.uuid)
@@ -721,20 +736,90 @@ const generatePageButton = () => {
         if (currentBlockUuid !== "")
           headerSpace.appendChild(createOpenButton(currentPageOriginalName + " 🔙 🔎",
             t("This zoom block will be lifted.")))
-
     }
+  }, 10)
 
+}
+
+const generateHierarchyList = () => {
+
+  if (logseq.settings!.tocShowSubPage as boolean === true)
     setTimeout(() => {
       //階層構造を表示
       const hierarchy = parent.document.getElementById(keyToolbarHierarchy) as HTMLElement | null
       if (hierarchy) {
-        //TODO:
-        hierarchy.innerHTML = "ここに階層構造を表示する予定"
-
+        hierarchy.innerHTML = ""//リフレッシュ
+        createHierarchyList(hierarchy)
       }
     }, 10)
-  }, 10)
+}
 
+type queryItemShort = Array<{
+  "original-name": string
+  uuid: string
+}>
+
+
+const createHierarchyList = async (hierarchyElement: HTMLElement) => {
+  if (currentPageName === "") return
+
+  const getArrayFromQuery = await getPageHierarchyFromQuery(currentPageName) as queryItemShort
+  if (getArrayFromQuery.length === 0) return
+
+  console.log(getArrayFromQuery)
+
+  // リストに反映
+  for (const item of getArrayFromQuery) {
+    const openButton = document.createElement("button")
+    openButton.textContent = item["original-name"]
+    openButton.title = item["original-name"]
+    openButton.className = "button"
+    openButton.style.whiteSpace = "nowrap"
+    openButton.addEventListener("click", async ({ shiftKey }) => {
+      currentBlockUuid = "" //ブロックuuidをリセットする
+      if (shiftKey === true)
+        logseq.Editor.openInRightSidebar(item.uuid)
+      else
+        // 目次の更新だけおこなう
+        displayHeadersList(item.uuid)
+    })
+    hierarchyElement.appendChild(openButton)
+  }
+}
+
+const getPageHierarchyFromQuery = async (pageName: string): Promise<queryItemShort> => {
+  const queryPageName = pageName.toLowerCase() // クエリーでは、ページ名を小文字にする必要がある
+  //同じ名前をもつページ名を取得するクエリー
+  const query = `
+      [:find (pull ?p [:block/original-name,:block/uuid])
+              :in $ ?pattern
+              :where
+              [?p :block/name ?c]
+              [(re-pattern ?pattern) ?q]
+              [(re-find ?q ?c)]
+      ]
+      `
+  let result = (await logseq.DB.datascriptQuery(query, `"${queryPageName}"`) as any | null)?.flat() as {
+    "original-name": string,
+    "uuid": string,
+  }[] | null
+  if (!result) {
+    logseq.UI.showMsg("Cannot get the page name", "error")
+    return []
+  }
+
+  //resultの中に、nullが含まれている場合があるので、nullを除外する
+  result = result.filter((item) => item !== null && item['original-name'] !== currentPageOriginalName)
+
+
+  if (result.length === 0) return []
+
+
+  // ページ名を、名称順に並び替える
+  result = result.sort((a, b) => {
+    return a["original-name"] > b["original-name"] ? 1 : -1
+  })
+  return result
 }
 
 
